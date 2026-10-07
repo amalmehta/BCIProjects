@@ -1,0 +1,13 @@
+\begin{tabular}{lccccc}
+\toprule
+Decoder & gain & smooth & hold (s) & click bits/s & dwell bits/s \\
+\midrule
+Oracle & 1 & 0 & 0.1 & 4.70 $\pm$ 0.17 & 4.20 $\pm$ 0.21 \\
+Wiener & 0.75 & 0.6 & 0.1 & 1.27 $\pm$ 0.37 & 0.55 $\pm$ 0.45 \\
+Kalman & 1 & 0 & 0.1 & 0.00 $\pm$ 0.00 & 0.00 $\pm$ 0.00 \\
+GRU & 1 & 0 & 0.25 & 1.66 $\pm$ 0.11 & 0.00 $\pm$ 0.00 \\
+SLD & 1.5 & 0.6 & 0.1 & 1.35 $\pm$ 0.18 & 0.00 $\pm$ 0.00 \\
+Wiener + ReFIT & 1 & 0.6 & 0.1 & 2.43 $\pm$ 0.37 & -- \\
+Kalman + ReFIT & 0.75 & 0.6 & 0.1 & 0.06 $\pm$ 0.06 & -- \\
+\bottomrule
+\end{tabular}

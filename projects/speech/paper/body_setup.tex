@@ -1,0 +1,21 @@
+\section{Experimental setup}
+\label{sec:setup}
+
+\paragraph{Data.} We use the Brain-to-Text~'25 release of \citet{card2024accurate} \citep{card2025dryad}. Dryad's API now requires a bearer token for downloads, so we stream the per-session HDF5 files from a public Hugging Face mirror of the unzipped release. Each file is converted to compressed float16 (48\% of the HDF5 size) and the HDF5 is deleted, which keeps the data under a 3\,GB disk budget.
+We use \textbf{10 training sessions} spread over August--December 2023: 2{,}140 sentences in the released \texttt{train} split, of which 10\% per session are held out as a \emph{dev} set (215) for checkpoint selection and LM tuning. The \textbf{test set} is the released \texttt{val} split of the same sessions (426 sentences). The competition's \texttt{test} split has no labels.
+A later session, \textbf{2024-03-15}, recorded 77 days after the last training session, never enters base training. It serves as the ``new day'' for calibration: 239 calibration sentences and 48 test sentences.
+Trials average 18.3\,s (916 bins of 20\,ms) and 27 label tokens. The cue sentences come from Switchboard, OpenWebText, Harvard sentences, a frequent-word corpus, a 50-word corpus and random word sequences (see the block metadata in the released code). Our test set has \CorpusNSwitchboard{} Switchboard, \CorpusNFreqWords{} frequent-word, \CorpusNOpenwebtext{} OpenWebText, \CorpusNHarvard{} Harvard and \CorpusNRandom{} random-word sentences. No test sentence occurs in the training split.
+
+\paragraph{Training.} We use AdamW (learning rate $2\times10^{-3}$, weight decay $10^{-2}$ excluding the day layers), batch 32, length-bucketed batches, 480 steps with 50 warm-up steps and cosine decay to 2\% (Conformer: 100 warm-up steps), and gradient clipping at 10. Dev greedy PER is evaluated every 50 steps and the best checkpoint is kept. On a shared 8-core Intel Mac with two threads per job, one run took 38--76 minutes depending on machine load. One run (GRU + new aug., seed 1) hit the 75-minute safety limit at step 466 of 480, when the learning rate had already decayed to about 2\% of its peak. The published schedule is 120{,}000 steps of batch 64, about 500$\times$ more samples.
+The GRUs use two seeds (0, 1). The Conformer has one seed: its second seed, along with a third GRU seed, a no-day-layer and a no-augmentation ablation, and a trained bidirectional GRU, was stopped or dropped because the shared machine became oversubscribed (load average above 100). These runs are listed in \texttt{gpu.yaml}.
+
+\paragraph{Systems.}
+\begin{itemize}\itemsep0pt
+\item \textbf{GRU baseline}: the published recipe, scaled down.
+\item \textbf{GRU + new aug.}: adds time masking and electrode dropout.
+\item \textbf{Causal Conformer}: \S\ref{sec:method}, with the new augmentations.
+\item \textbf{Bidirectional GRU}: a non-causal reference, used for latency only (timed untrained).
+\item \textbf{Day layers}: analyzed by swapping layers at test time (\S\ref{sec:results}).
+\end{itemize}
+
+\paragraph{Metrics.} PER and WER are corpus-level: total Levenshtein edits divided by total reference tokens, after lower-casing and removing punctuation. PER includes the word-boundary token, as in the released evaluation code. 95\% confidence intervals come from a bootstrap over sentences (1{,}000 resamples).

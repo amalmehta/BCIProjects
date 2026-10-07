@@ -1,0 +1,6 @@
+22:11:21 onnx encoder.onnx: 210 kB, max |torch - onnxruntime| = 5.34e-05 uA
+22:11:24 onnx encoder_letters.onnx: 210 kB, max |torch - onnxruntime| = 4.20e-05 uA
+22:11:25 site export: 2.33 MB in /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/blindsight/results/site_export
+23:00:34 onnx encoder.onnx: 210 kB, max |torch - onnxruntime| = 4.20e-05 uA
+23:00:36 onnx encoder_letters.onnx: 210 kB, max |torch - onnxruntime| = 4.20e-05 uA
+23:00:37 site export: 2.38 MB in /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/blindsight/results/site_export

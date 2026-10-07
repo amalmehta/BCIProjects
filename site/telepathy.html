@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telepathy Cursor Decoding</title>
+<meta name="description" content="Stable cursor decoding across four months of intracortical recordings, plus a closed-loop WebGrid simulator that measures bits per second.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<style>
+  .tp-two { display: grid; grid-template-columns: minmax(0, 520px) 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 820px) { .tp-two { grid-template-columns: 1fr; } }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .score { font: 650 40px/1 var(--sans); color: var(--telepathy); }
+  .side-k { color: var(--faint); font-size: 13px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<header class="hero wrap" style="--accent: var(--telepathy)">
+  <div class="eyebrow">Telepathy · cursor control</div>
+  <h1>A cursor decoder that still<br>works four months later.</h1>
+  <p class="lede">People with paralysis need a cursor that works when they sit down, without a daily calibration block,
+  and what they feel is throughput, not offline R². I trained decoders on 5 days of a public 96-electrode motor-cortex
+  dataset, tested them on 19 later days without labels, and built a closed-loop WebGrid simulator to score each one in bits per second.</p>
+  <div class="btns">
+    <a class="btn primary" href="papers/Telepathy.pdf">Read the paper (PDF)</a>
+    <a class="btn" href="#webgrid">Watch the WebGrid replay</a>
+    <a class="btn" href="#results">Results</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="stats" id="stats"></div>
+  <div class="callout">Offline R² is on real recordings (O'Doherty et al. 2017, monkey Indy, 24 sessions over 138 days).
+  Every bits-per-second number comes from a simulated user in closed loop, not from a person or an animal.</div>
+
+  <h2 id="webgrid">WebGrid, in closed loop (simulated)</h2>
+  <p class="prose" style="color:var(--muted)">WebGrid is the task Neuralink uses to report cursor throughput: a target cell lights up and the
+  user moves to it and selects it. Bitrate = log₂(N−1) × max(correct − incorrect, 0) / time. Here a feedback-control "user"
+  aims at each target, a neural encoding model fit to the recordings turns that intention into spikes, and each decoder
+  turns the spikes back into cursor movement. Each replay is one 60-second session.</p>
+  <div class="demo">
+    <div class="controls">
+      <div class="seg" id="wgDec"></div>
+      <button class="playbtn" id="wgPlay" type="button">Pause</button>
+      <label>Speed <select id="wgSpeed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select></label>
+    </div>
+    <div class="tp-two">
+      <canvas id="wg"></canvas>
+      <div>
+        <div class="score" id="wgBps">0.00</div>
+        <div class="side-k">bits/s so far in this session</div>
+        <div class="readout" id="wgInfo"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Decoded reaches, on held-out days</h2>
+  <p class="prose" style="color:var(--muted)">These are real recorded reaches. The white line is the true hand path and the coloured lines are each decoder's
+  path, from integrating its decoded velocity. Some reaches fail for every decoder (see day 83), so per-reach R² is shown under the plot. On cross-day trials the Wiener, Kalman and GRU decoders are re-centred and SLD is aligned without any labels.</p>
+  <div class="demo">
+    <div class="controls"><label>Reach <select id="trSel"></select></label><button class="playbtn" id="trPlay" type="button">Replay</button></div>
+    <canvas id="tr"></canvas>
+    <div class="legend" id="trLegend" style="margin-top:10px"></div>
+  </div>
+
+  <h2 id="results">Results</h2>
+  <div id="mainTable"></div>
+  <p class="prose" style="color:var(--faint);font-size:13.5px">The cross-day columns have no labels from the new day. "All 19 days" includes days 28 and 131, when electrode identities changed
+  and every re-centred decoder falls to R² ≈ 0. A label-free firing-rate check flags both days.</p>
+
+  <h3>Few-shot recalibration</h3>
+  <p class="prose" style="color:var(--muted)">This is how much a handful of labelled reaches on a new day helps (mean over 3 held-out days). Updating only SLD's per-day
+  adapter is stable from a single reach. Fine-tuning the whole GRU on one reach makes it worse.</p>
+  <div class="demo"><svg id="recal" viewBox="0 0 720 320" width="100%"></svg><div class="legend" id="recalLegend"></div></div>
+
+  <div class="grid two">
+    <figure><img src="data/telepathy/fig_cross_day.png" alt="Cross-day R squared by decoder over 138 days"><figcaption>Cross-day R² over four months. The dips are the electrode re-mapping days.</figcaption></figure>
+    <figure><img src="data/telepathy/fig_stress.png" alt="Electrode dropout stress test"><figcaption>Silencing electrodes: with half of them gone, SLD keeps R² 0.69 and the plain GRU falls to 0.39.</figcaption></figure>
+    <figure><img src="data/telepathy/fig_webgrid_bps.png" alt="Simulated WebGrid bitrate by decoder"><figcaption>Simulated WebGrid bitrate. Offline rankings don't carry over to closed loop.</figcaption></figure>
+    <figure><img src="data/telepathy/fig_sim_fidelity.png" alt="Simulator fidelity checks"><figcaption>Checking the simulator's encoding model against the real recordings.</figcaption></figure>
+  </div>
+
+  <h2>How it works</h2>
+  <div class="prose">
+    <h3>Stable Latent Decoder (SLD)</h3>
+    <p>Each day gets an identity-initialised channel adapter, which feeds a shared recurrent latent model trained on five
+    calibration days. Training uses input perturbations (gain, offset and electrode dropout) and a masked-spike reconstruction loss. On a
+    new day the adapter is fitted without labels, by NoMAD-style likelihood plus latent-moment matching, or with a few labelled reaches.</p>
+    <h3>What actually mattered</h3>
+    <p>The ablations are blunt. Training on several days, perturbing inputs and re-scaling each channel with the new day's
+    statistics do most of the work: a GRU with augmentation matches SLD on the regular days. Unsupervised alignment helps
+    only far from calibration (82–138 days) and on the day-28 electrode re-mapping, where it recovered in 2 of 3 seeds.
+    That is the honest result, and the paper reports it that way.</p>
+    <h3>Closed-loop simulator</h3>
+    <p>The simulated user is an optimal-feedback-control-style controller with motor noise. An encoding model fit to each day's recordings turns its
+    intended velocity into spike counts. Gain, smoothing and dwell are tuned per decoder, as a clinician would.
+    A ReFIT-style intention re-estimation roughly doubles the Wiener filter's simulated bitrate (1.27 → 2.43 bits/s).</p>
+    <h3>Limits</h3>
+    <ul>
+      <li>Monkey data with 96 electrodes and a simulated closed loop. No human or animal was in the loop.</li>
+      <li>Simulated bitrates are noisy (4 × 60 s sessions per decoder), so differences under about 0.5 bits/s aren't meaningful.</li>
+      <li>The Kalman baseline is weak at 20 ms bins (R² ≈ 0.2). It was tuned but not re-engineered.</li>
+      <li>The machine was heavily loaded, so the CPU runs use fewer seeds and days for few-shot and ablations. <code>run_gpu.sh</code> runs the full scale.</li>
+    </ul>
+  </div>
+</main>
+
+<script type="module">
+import { page, loadJSON, renderTable, setupCanvas, css } from "./assets/common.js";
+page("telepathy");
+
+const D = "data/telepathy/";
+const [metrics, traj, wg, recal] = await Promise.all(["metrics", "trajectories", "webgrid", "recalibration"].map(n => loadJSON(D + n + ".json")));
+const dec = metrics.decoders;
+const NAMES = { oracle: "Perfect decoder", wiener: "Wiener", kalman: "Kalman", fa_stabiliser: "FA stabiliser", gru: "GRU", sld: "SLD (proposed)", sld_proposed: "SLD (proposed)" };
+const COLORS = { oracle: "#9aa3b2", wiener: "#f5c76b", kalman: "#ff7a7a", gru: "#5fd39a", sld: "#7cc4ff" };
+
+// ---- stats ----------------------------------------------------------------
+const sld = dec.sld_proposed;
+document.getElementById("stats").innerHTML = [
+  [sld.within_day_r2.mean.toFixed(2), "within-day velocity R² (SLD)"],
+  [sld.cross_day_r2_recentred.mean_excluding_remapped_days.toFixed(2), `cross-day R², no labels, up to 138 days (Wiener ${dec.wiener.cross_day_r2.mean_excluding_remapped_days.toFixed(2)})`],
+  [dec.gru.webgrid_bps_sim.mean.toFixed(2), `best simulated bits/s (GRU). Ceiling ${metrics.oracle_webgrid_bps_sim.mean.toFixed(2)}`],
+  ["24", "real sessions, 5 for calibration and 19 held out"],
+].map(([v, k]) => `<div class="stat"><div class="v" style="color:var(--telepathy)">${v}</div><div class="k">${k}</div></div>`).join("");
+
+// ---- table ----------------------------------------------------------------
+const pm = o => o ? `${o.mean.toFixed(3)} ± ${o.std.toFixed(3)}` : null;
+const rows = Object.entries(dec).map(([k, d]) => {
+  const best = d.cross_day_r2_recentred ?? d.cross_day_r2;
+  return {
+    name: NAMES[k] ?? k,
+    within: d.within_day_r2.mean, withinS: pm(d.within_day_r2),
+    fixed: d.cross_day_r2_fixed?.mean_excluding_remapped_days,
+    adapted: best.mean_excluding_remapped_days, adaptedAll: best.mean,
+    bps: d.webgrid_bps_sim ? d.webgrid_bps_sim : null,
+    lat: d.latency_ms_per_bin_cpu,
+  };
+});
+renderTable(document.getElementById("mainTable"), rows, [
+  { key: "name", label: "Decoder" },
+  { key: "withinS", label: "Within-day R²", num: true },
+  { key: "fixed", label: "Cross-day R², frozen", num: true, fmt: v => v.toFixed(3) },
+  { key: "adapted", label: "Cross-day R², adapted (17 days)", num: true, fmt: v => v.toFixed(3) },
+  { key: "adaptedAll", label: "…all 19 days", num: true, fmt: v => v.toFixed(3) },
+  { key: "bps", label: "Sim. WebGrid bits/s", num: true, fmt: v => `${v.mean.toFixed(2)} ± ${v.std.toFixed(2)}` },
+  { key: "lat", label: "CPU ms / 20 ms bin", num: true, fmt: v => v.toFixed(2) },
+], { bestKey: "adapted" });
+
+// ---- WebGrid replay -------------------------------------------------------
+const wgCanvas = document.getElementById("wg");
+let cur = "gru", t0 = performance.now(), simT = 0, playing = true, speed = 2;
+const order = ["oracle", "wiener", "kalman", "gru", "sld"].filter(k => wg.sessions[k]);
+document.getElementById("wgDec").innerHTML = order.map(k => `<button data-v="${k}" class="${k === cur ? "on" : ""}">${NAMES[k]}</button>`).join("");
+document.getElementById("wgDec").addEventListener("click", e => {
+  if (!e.target.dataset.v) return; cur = e.target.dataset.v; simT = 0;
+  document.querySelectorAll("#wgDec button").forEach(b => b.classList.toggle("on", b.dataset.v === cur));
+});
+document.getElementById("wgPlay").addEventListener("click", e => { playing = !playing; e.target.textContent = playing ? "Pause" : "Play"; });
+document.getElementById("wgSpeed").addEventListener("change", e => speed = +e.target.value);
+
+function lastIdx(arr, t, key = "t") { let i = -1; for (let k = 0; k < arr.length && arr[k][key] <= t; k++) i = k; return i; }
+
+function drawWG() {
+  const s = wg.sessions[cur], n = s.grid;
+  const { ctx, w } = setupCanvas(wgCanvas, 1);
+  const side = wg.workspace_mm.side, [cx, cy] = wg.workspace_mm.center;
+  const ox = cx - side / 2, oy = cy - side / 2, cell = w / n;
+  const X = x => (x - ox) / side * w, Y = y => w - (y - oy) / side * w;
+  ctx.fillStyle = css("--bg-2"); ctx.fillRect(0, 0, w, w);
+  // current target
+  const ti = lastIdx(s.targets, simT);
+  if (ti >= 0) { const tg = s.targets[ti]; ctx.fillStyle = "rgba(124,196,255,.85)"; ctx.fillRect(tg.col * cell + 2, (n - 1 - tg.row) * cell + 2, cell - 4, cell - 4); }
+  // recent selections flash
+  for (const sel of s.selections) {
+    const age = simT - sel.t; if (age < 0 || age > 0.5) continue;
+    ctx.fillStyle = sel.correct ? `rgba(95,211,154,${0.8 - age})` : `rgba(255,122,122,${0.8 - age})`;
+    ctx.fillRect(sel.col * cell + 2, (n - 1 - sel.row) * cell + 2, cell - 4, cell - 4);
+  }
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1;
+  for (let i = 0; i <= n; i++) { ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, w); ctx.moveTo(0, i * cell); ctx.lineTo(w, i * cell); ctx.stroke(); }
+  // trail
+  const c = s.cursor; let k = 0; while (k < c.t.length - 1 && c.t[k + 1] <= simT) k++;
+  ctx.strokeStyle = COLORS[cur]; ctx.globalAlpha = 0.6; ctx.lineWidth = 2; ctx.beginPath();
+  for (let j = Math.max(0, k - 60); j <= k; j++) j === Math.max(0, k - 60) ? ctx.moveTo(X(c.x[j]), Y(c.y[j])) : ctx.lineTo(X(c.x[j]), Y(c.y[j]));
+  ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.fillStyle = css("--text"); ctx.beginPath(); ctx.arc(X(c.x[k]), Y(c.y[k]), 6, 0, 7); ctx.fill();
+  // running score
+  const done = s.selections.filter(x => x.t <= simT), ok = done.filter(x => x.correct).length, bad = done.length - ok;
+  const bps = simT > 1 ? Math.log2(n * n - 1) * Math.max(ok - bad, 0) / simT : 0;
+  document.getElementById("wgBps").textContent = bps.toFixed(2);
+  document.getElementById("wgInfo").innerHTML = `${NAMES[cur]}<br>t = ${simT.toFixed(1)} / ${s.seconds} s<br>correct ${ok} · wrong ${bad}<br>` +
+    `this session: ${s.bps.toFixed(2)} bits/s<br>mean over sessions: ${(cur === "oracle" ? metrics.oracle_webgrid_bps_sim : dec[cur === "sld" ? "sld_proposed" : cur].webgrid_bps_sim).mean.toFixed(2)} bits/s<br>` +
+    `tuning: gain ${s.tuning.gain}, smoothing ${s.tuning.smooth}, dwell ${s.tuning.hold}s`;
+}
+function loop(now) {
+  const dt = (now - t0) / 1000; t0 = now;
+  if (playing) { simT += dt * speed; if (simT > wg.sessions[cur].seconds) simT = 0; }
+  drawWG(); requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---- trajectories ---------------------------------------------------------
+const trSel = document.getElementById("trSel"), trCanvas = document.getElementById("tr");
+trSel.innerHTML = traj.trials.map((t, i) => `<option value="${i}">${t.split === "within-day" ? "Same day" : "Day " + t.day_index} (${t.split}) · ${t.session}</option>`).join("");
+const trDecs = Object.keys(traj.trials[0].decoded_pos);
+function r2(dv, tv) {
+  const mu = [0, 1].map(i => tv.reduce((a, v) => a + v[i], 0) / tv.length);
+  let se = 0, st = 0;
+  tv.forEach((v, t) => [0, 1].forEach(i => { se += (dv[t][i] - v[i]) ** 2; st += (v[i] - mu[i]) ** 2; }));
+  return 1 - se / st;
+}
+function legend() {
+  const tr = traj.trials[+trSel.value];
+  document.getElementById("trLegend").innerHTML = `<span><i style="background:${css("--text")}"></i>True</span>` +
+    trDecs.map(k => `<span><i style="background:${COLORS[k]}"></i>${NAMES[k]} · R² ${r2(tr.decoded_vel[k], tr.true_vel).toFixed(2)} on this reach</span>`).join("");
+}
+let trStart = performance.now();
+function drawTr(now) {
+  const tr = traj.trials[+trSel.value];
+  const { ctx, w, h } = setupCanvas(trCanvas, 2.2);
+  // Frame the true path and target (with margin); decoders that drift off are clipped at the edge.
+  const all = tr.true_pos.concat([tr.target]);
+  const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+  const pad = 24, mx = 0.35 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 20);
+  const x0 = Math.min(...xs) - mx, x1 = Math.max(...xs) + mx, y0 = Math.min(...ys) - mx, y1 = Math.max(...ys) + mx;
+  const sc = Math.min((w - 2 * pad) / (x1 - x0 || 1), (h - 2 * pad) / (y1 - y0 || 1));
+  const X = x => pad + (x - x0) * sc + ((w - 2 * pad) - (x1 - x0) * sc) / 2, Y = y => h - pad - (y - y0) * sc - ((h - 2 * pad) - (y1 - y0) * sc) / 2;
+  ctx.fillStyle = css("--bg-2"); ctx.fillRect(0, 0, w, h);
+  const n = tr.t_ms.length, k = Math.min(n, Math.floor((now - trStart) / 20 / 1.5) + 1);
+  ctx.strokeStyle = "rgba(124,196,255,.5)"; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(X(tr.target[0]), Y(tr.target[1]), 12, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  const line = (pts, col, lw) => { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); pts.slice(0, k).forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]))); ctx.stroke(); };
+  trDecs.forEach(d => line(tr.decoded_pos[d], COLORS[d], 2));
+  line(tr.true_pos, css("--text"), 3);
+  ctx.fillStyle = css("--faint"); ctx.font = "12px Inter, sans-serif";
+  ctx.fillText(`${((k - 1) * traj.bin_ms / 1000).toFixed(2)} s · ${tr.split}, day ${tr.day_index}`, 10, 18);
+  if (k < n) requestAnimationFrame(drawTr);
+}
+const replay = () => { legend(); trStart = performance.now(); requestAnimationFrame(drawTr); };
+trSel.addEventListener("change", replay); document.getElementById("trPlay").addEventListener("click", replay);
+trSel.value = "3"; replay();
+
+// ---- recalibration chart ---------------------------------------------------
+const RN = { wiener_prior: "Wiener, re-fit with prior", wiener_scratch: "Wiener from scratch", gru_finetune: "GRU, full fine-tune", sld_fewshot: "SLD, adapter only", sld_align_fewshot: "SLD, align then adapter" };
+const RC = { wiener_prior: "#f5c76b", wiener_scratch: "#c79a3f", gru_finetune: "#5fd39a", sld_fewshot: "#7cc4ff", sld_align_fewshot: "#b59cff" };
+function drawRecal() {
+  const svg = document.getElementById("recal"), W = 720, H = 320, L = 50, B = 40, T = 14, Rr = 16;
+  const xs = [0, 1, 5, 20, 50], xp = x => L + xs.indexOf(x) / (xs.length - 1) * (W - L - Rr);
+  const yp = y => T + (1 - (y + 0.1) / 0.9) * (H - T - B);
+  const m = css("--muted"), ln = css("--line");
+  let s = "";
+  for (let y = -0.1; y <= 0.81; y += 0.1) s += `<line x1="${L}" x2="${W - Rr}" y1="${yp(y)}" y2="${yp(y)}" stroke="${ln}"/><text x="${L - 8}" y="${yp(y) + 4}" fill="${m}" font-size="11" text-anchor="end">${y.toFixed(1)}</text>`;
+  xs.forEach(x => s += `<text x="${xp(x)}" y="${H - B + 18}" fill="${m}" font-size="11" text-anchor="middle">${x}</text>`);
+  s += `<text x="${(W + L) / 2}" y="${H - 4}" fill="${m}" font-size="12" text-anchor="middle">${recal.x_label}</text>`;
+  s += `<text x="14" y="${(H - B) / 2}" fill="${m}" font-size="12" text-anchor="middle" transform="rotate(-90 14 ${(H - B) / 2})">velocity R²</text>`;
+  for (const [k, pts] of Object.entries(recal.methods)) {
+    s += `<polyline fill="none" stroke="${RC[k]}" stroke-width="2.2" points="${pts.map(p => `${xp(p.x)},${yp(Math.max(p.mean, -0.1))}`).join(" ")}"/>`;
+    s += pts.map(p => `<circle cx="${xp(p.x)}" cy="${yp(Math.max(p.mean, -0.1))}" r="3.5" fill="${RC[k]}"><title>${RN[k]}: ${p.x} reaches → R² ${p.mean.toFixed(3)} ± ${p.std.toFixed(3)}</title></circle>`).join("");
+  }
+  svg.innerHTML = s;
+  document.getElementById("recalLegend").innerHTML = Object.keys(recal.methods).map(k => `<span><i style="background:${RC[k]}"></i>${RN[k]}</span>`).join("");
+}
+drawRecal();
+window.addEventListener("themechange", () => { drawRecal(); replay(); });
+</script>
+</body>
+</html>

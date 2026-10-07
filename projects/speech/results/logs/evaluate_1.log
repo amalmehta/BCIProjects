@@ -1,0 +1,3 @@
+[eval] gru_baseline_s0: {"per_greedy": 0.4751, "wer_lexicon": 0.8851, "beta_lexicon": 0.0, "alpha": 0.5, "beta": 2.0, "dev_wer_ngram": 0.5714, "wer_ngram": 0.6653, "wer_ngram_ci95": [0.6445364289865522, 0.6866206720008964]}
+[eval] gru_aug_s0: {"per_greedy": 0.4923, "wer_lexicon": 0.88, "beta_lexicon": -2.0, "alpha": 0.5, "beta": 3.0, "dev_wer_ngram": 0.6256, "wer_ngram": 0.6952, "wer_ngram_ci95": [0.6729021196937048, 0.7166095238971627]}
+[eval] wrote /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/speech/results/metrics_systems.json

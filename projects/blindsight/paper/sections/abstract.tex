@@ -1,0 +1,11 @@
+Cortical visual prostheses evoke phosphenes by microstimulating primary visual cortex (V1). High-channel-count thread-based implants make it possible to place on the order of a thousand stimulation sites. Their usefulness then depends on the \emph{stimulus encoder}, which maps each camera frame to safe per-electrode currents for one particular person. No public human V1 stimulation dataset exists, so we approach the problem in simulation.
+
+We re-implement and extend the biologically grounded, differentiable phosphene model of van der Grinten et al.\ (2024). The extensions are an exact single-train closed form that includes habituation, a fast separable/basis renderer, Utah-like and thread-like layouts, and a patient sampler. We validate the simulator against human magnification and against intracortical brightness and threshold data.
+
+We then train a position-aware encoder through the simulator. It is a small U-Net read out at each phosphene location, followed by a per-electrode \emph{patient adapter}, and it obeys hard limits on current (100\,\textmu A) and on simultaneously active electrodes (25\%).
+
+On five held-out simulated patients with 1024 sites, the learned encoder beats intensity, edge and saliency baselines on every image-fidelity metric for MNIST, EMNIST letters and CIFAR-10. It also uses \NumChargeSaveMin--\NumChargeSaveMax\% less charge than calibrated intensity sampling. Letter recognition by a learned observer rises from \NumLettersIntAcc\ to \NumLettersLearnAcc, matching the same classifier on the original images (\NumLettersCeil).
+
+Unsupervised adapter fine-tuning on a patient's calibrated forward model further improves fidelity on every dataset. Ablations show that the safety limits trade a little fidelity for much less stimulation, and that a single 96-channel array covers too little of the visual field for any encoder.
+
+We release the simulator, encoders, ONNX models and browser-ready rendering specifications. Every number comes from CPU-scale runs in the accompanying code.

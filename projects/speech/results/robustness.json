@@ -1,0 +1,61 @@
+{
+  "settings": {
+    "runs": [
+      "gru_baseline_s0",
+      "gru_aug_s0",
+      "conformer_aug_s0"
+    ],
+    "drop_fractions": [
+      0.0,
+      0.1,
+      0.3,
+      0.5
+    ],
+    "n_masks": 1,
+    "day_swap_runs": [
+      "gru_aug_s0",
+      "conformer_aug_s0"
+    ]
+  },
+  "drop_fractions": [
+    0.0,
+    0.1,
+    0.3,
+    0.5
+  ],
+  "n_masks": 1,
+  "per": {
+    "gru_baseline_s0": [
+      0.4752109280835677,
+      0.4805946163117718,
+      0.5102450783447168,
+      0.5358778625954198
+    ],
+    "gru_aug_s0": [
+      0.49216552832462834,
+      0.4995580554439534,
+      0.519485737243873,
+      0.5378867014865408
+    ],
+    "conformer_aug_s0": [
+      0.3879469666532744,
+      0.3979108075532342,
+      0.43415026114905586,
+      0.4773001205303335
+    ]
+  },
+  "day_swap": {
+    "gru_aug_s0": {
+      "own day": 0.49216552832462834,
+      "previous session's layer": 0.5207713941341905,
+      "most distant session's layer": 0.5638408999598232,
+      "identity (no day layer)": 0.5812776215347529
+    },
+    "conformer_aug_s0": {
+      "own day": 0.3879469666532744,
+      "previous session's layer": 0.447408597830454,
+      "most distant session's layer": 0.5300120530333468,
+      "identity (no day layer)": 0.48501406187223783
+    }
+  }
+}

@@ -1,0 +1,14 @@
+20:46:26   mnist    learned                  ssim=0.840 lp=0.945 psnr=19.60 acc=0.970 active=230 charge=2970nC
+20:48:54   mnist    intensity                ssim=0.726 lp=0.840 psnr=16.23 acc=0.968 active=256 charge=3897nC
+20:52:11   mnist    learned                  ssim=0.508 lp=0.426 psnr=10.22 acc=0.116 active=69 charge=0nC
+21:00:13   mnist    learned                  ssim=0.842 lp=0.946 psnr=19.63 acc=0.975 active=230 charge=2956nC
+21:07:05   mnist    learned                  ssim=0.834 lp=0.938 psnr=19.45 acc=0.974 active=231 charge=3153nC
+21:09:53   mnist    learned                  ssim=0.870 lp=0.964 psnr=20.45 acc=0.973 active=920 charge=5010nC
+21:12:51   mnist    learned                  ssim=0.540 lp=0.479 psnr=11.13 acc=0.821 active=15 charge=227nC
+21:20:11   mnist    intensity                ssim=0.537 lp=0.482 psnr=11.12 acc=0.770 active=16 charge=242nC
+21:31:09   mnist    learned                  ssim=0.654 lp=0.695 psnr=13.83 acc=0.936 active=57 charge=889nC
+21:37:14   mnist    intensity                ssim=0.621 lp=0.653 psnr=13.33 acc=0.924 active=64 charge=968nC
+21:40:46   mnist    learned                  ssim=0.508 lp=0.426 psnr=10.22 acc=0.116 active=22 charge=0nC
+21:48:00   mnist    intensity                ssim=0.511 lp=0.437 psnr=10.31 acc=0.213 active=18 charge=264nC
+22:01:26   mnist    learned                  ssim=0.560 lp=0.528 psnr=11.35 acc=0.711 active=230 charge=2341nC
+22:09:34   mnist    intensity                ssim=0.531 lp=0.517 psnr=10.99 acc=0.730 active=252 charge=3718nC

@@ -1,0 +1,63 @@
+# Small-scale configuration verified on a shared 8-core Intel Mac (CPU, 2 threads per process).
+data_root: ../../data/blindsight
+results_dir: results
+threads: 2
+datasets: [mnist, letters, cifar]
+seeds: [0, 1, 2]
+sim:
+  fov_deg: 12.0          # rendered field of view (full width, degrees)
+  resolution: 64         # pixels per side for training and evaluation
+  max_current_ua: 100.0  # hard amplitude ceiling (17 nC/phase at 170 us)
+  sigma_floor_deg: 0.15  # display blur added in quadrature to every phosphene
+layout:
+  name: threads_1024     # main implant: 1024 thread sites over both hemispheres
+  ecc_min: 0.2
+  ecc_max: 6.0
+  seed: 0
+safety:
+  max_active_frac: 0.25  # at most 25 % of electrodes stimulated in one frame
+patients:
+  dropout: 0.1           # fraction of dead electrodes per patient
+  jitter_mm: 0.4         # cortical position error of each site (sd, mm)
+  train_pool: 16         # domain-randomisation pool for training
+  train_seed0: 100
+  test_seeds: [1000, 1001, 1002, 1003, 1004]
+  switch_every: 20
+train:
+  n_train: 20000
+  steps: 1500
+  batch: 32
+  lr: 0.001
+  width: 24
+  w_recon: 1.0
+  w_percept: 1.0
+  w_ssim: 0.5
+  w_charge: 0.05
+  log_every: 100
+eval:
+  n_test: 2000
+  n_clf_train: 6000
+  clf_epochs: 4
+  clf_batch: 128
+  dropout_levels: [0.1, 0.25, 0.5]   # 0 % is the main result
+  oracle_images: 128
+  oracle_steps: 100
+adapt:
+  shots: [16, 64, 256, 1024]
+  main_shots: 256
+  curve_patients: 2      # test patients used for the shots curve
+  steps: 150
+  batch: 32
+  lr: 0.005
+# Training variants (ablations), trained on ablation_dataset with ablation_seeds.
+ablation_dataset: mnist
+ablation_seeds: [0]
+variants:
+  no_percept_loss: {train: {w_percept: 0.0}}
+  no_recon_loss: {train: {w_recon: 0.0}}
+  no_charge_cost: {train: {w_charge: 0.0}}
+  unconstrained: {sim: {max_current_ua: 200.0}, safety: {max_active_frac: null}, train: {w_charge: 0.0}}
+  threads_64: {layout: {name: threads_64}}
+  threads_256: {layout: {name: threads_256}}
+  utah_96: {layout: {name: utah_96}}
+  utah_1024: {layout: {name: utah_1024}}

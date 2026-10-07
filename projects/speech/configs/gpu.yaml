@@ -1,0 +1,81 @@
+# Full-scale configuration for a CUDA GPU (same code; device auto-detected, AMP on CUDA).
+# Restores the published Brain-to-Text '25 baseline scale: all 45 sessions, 20 ms bins,
+# 14-bin patches with stride 4, a 5 x 768 GRU, step-based cosine schedule.
+# Not run by the author (no GPU available); see scripts/run_gpu.sh.
+base: cpu.yaml
+results_dir: results_gpu
+threads: 8
+
+data:
+  sessions: [t15.2023.08.11, t15.2023.08.13, t15.2023.08.18, t15.2023.08.20, t15.2023.08.25, t15.2023.08.27,
+             t15.2023.09.01, t15.2023.09.03, t15.2023.09.24, t15.2023.09.29, t15.2023.10.01, t15.2023.10.06,
+             t15.2023.10.08, t15.2023.10.13, t15.2023.10.15, t15.2023.10.20, t15.2023.10.22, t15.2023.11.03,
+             t15.2023.11.04, t15.2023.11.17, t15.2023.11.19, t15.2023.11.26, t15.2023.12.03, t15.2023.12.08,
+             t15.2023.12.10, t15.2023.12.17, t15.2023.12.29, t15.2024.02.25, t15.2024.03.03, t15.2024.03.08,
+             t15.2024.03.15, t15.2024.03.17, t15.2024.04.25, t15.2024.04.28, t15.2024.05.10, t15.2024.06.14,
+             t15.2024.07.19, t15.2024.07.21, t15.2024.07.28, t15.2025.01.10, t15.2025.01.12, t15.2025.03.14,
+             t15.2025.03.16, t15.2025.03.30]
+  heldout_session: t15.2025.04.13
+  bin_factor: 1
+
+train:
+  batch_size: 64
+  max_steps: 60000
+  max_minutes: 100000
+  schedule: steps
+  lr: 0.003
+  warmup_steps: 1000
+  eval_every: 2000
+
+aug:
+  random_cut: 3
+
+models:
+  gru:
+    hidden: 768
+    layers: 5
+    patch_size: 14
+    patch_stride: 4
+    smooth_std: 2.0
+  conformer:
+    d_model: 256
+    layers: 8
+    heads: 4
+    patch_size: 14
+    patch_stride: 4
+    bottleneck: 256
+    inter_ctc_layers: [4]
+    smooth_std: 2.0
+
+new_aug: &new_aug
+  time_mask_num: 2
+  time_mask_max_bins: 25
+  electrode_dropout: 0.1
+
+runs:
+  gru_aug: {model: gru, aug: *new_aug}
+  conformer_aug: {model: conformer, aug: *new_aug, train: {lr: 0.002, warmup_steps: 4000, inter_ctc_weight: 0.3}}
+  gru_noday: {model: gru, aug: *new_aug, model_overrides: {per_day: false}}
+  gru_bi_aug: {model: gru, aug: *new_aug, model_overrides: {bidirectional: true}}
+
+eval:
+  n_tune: 300
+  beam: 64
+  workers: 8
+
+calibration:
+  steps: 200
+
+schedule:
+  - [gru_baseline, 0]
+  - [gru_baseline, 1]
+  - [gru_baseline, 2]
+  - [gru_aug, 0]
+  - [gru_aug, 1]
+  - [gru_aug, 2]
+  - [conformer_aug, 0]
+  - [conformer_aug, 1]
+  - [conformer_aug, 2]
+  - [gru_bi_aug, 0]
+  - [gru_noday, 0]
+  - [gru_noaug, 0]

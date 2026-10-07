@@ -1,0 +1,13 @@
+22:56:25 prepared /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/data/blindsight/mnist.pt
+22:56:25 prepared /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/data/blindsight/letters.pt
+22:56:25 prepared /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/data/blindsight/cifar.pt
+22:57:16 validation: {"magnification_max_rel_diff_0_to_10deg": 0.08269230769230769, "phosphene_diameter_deg": {"50uA": {"1deg": 0.05587043330754466, "2deg": 0.0885219852405253, "5deg": 0.18964285213599869}, "80uA": {"1deg": 0.07067112924495031, "2deg": 0.11197243854394724, "5deg": 0.23988134188811353}, "100uA": {"1deg": 0.07901272451919115, "2deg": 0.12518899209534182, "5deg": 0.26819549349784483}}, "brightness_r2_vs_fernandez_fig6a": 0.8210717852252465, "threshold_current_ua": {"mean": 46.98949895336231, "sd": 15.160444914265582, "p5": 23.900000000000002, "p95": 73.1106138494608, "fernandez2021_mean_sd": [66.8, 3
+22:59:24 mnist: intensity_uncalibrated acc=0.962 ssim_lp=0.849; intensity acc=0.968 ssim_lp=0.840; edge acc=0.938 ssim_lp=0.560; salient_edge acc=0.904 ssim_lp=0.603; learned acc=0.971 ssim_lp=0.944; learned_adapted acc=0.975 ssim_lp=0.953
+22:59:24 letters: intensity_uncalibrated acc=0.764 ssim_lp=0.753; intensity acc=0.766 ssim_lp=0.761; edge acc=0.697 ssim_lp=0.476; salient_edge acc=0.646 ssim_lp=0.516; learned acc=0.810 ssim_lp=0.891; learned_adapted acc=0.806 ssim_lp=0.911
+22:59:24 cifar: intensity_uncalibrated acc=0.281 ssim_lp=0.215; intensity acc=0.306 ssim_lp=0.275; edge acc=0.294 ssim_lp=0.073; salient_edge acc=0.290 ssim_lp=0.053; learned acc=0.330 ssim_lp=0.325; learned_adapted acc=0.339 ssim_lp=0.396
+23:00:04 figures written to /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/blindsight/results/figures
+23:00:34 onnx encoder.onnx: 210 kB, max |torch - onnxruntime| = 4.20e-05 uA
+23:00:36 onnx encoder_letters.onnx: 210 kB, max |torch - onnxruntime| = 4.20e-05 uA
+23:00:37 site export: 2.38 MB in /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/blindsight/results/site_export
+.........................                                                [100%]
+25 passed in 53.38s

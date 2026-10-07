@@ -1,0 +1,16 @@
+[20:31:26] train blocks 13 over 6 days; minival 13; held-out days 7
+[20:36:51] ms_gru_noaug s0  step   250 train 0.3265 val 0.6996
+[20:40:25] ms_gru_noaug s0  step   500 train 0.3567 val 0.6030
+[20:43:34] ms_gru_noaug s0  step   750 train 0.1793 val 0.5558
+[20:48:06] ms_gru_noaug s0  step  1000 train 0.1685 val 0.5436
+[20:53:58] ms_gru_noaug s0  step  1200 train 0.1473 val 0.5422
+[21:58:20] ms_gru_noaug seed 0: within=0.559 zs=0.227 10s=0.277 20s=0.294 45s=0.271 (1351s)
+/Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/.venv/lib/python3.11/site-packages/torch/nn/modules/transformer.py:286: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+[22:10:31] transformer s0  step   250 train 0.4201 val 0.6748
+[22:18:35] transformer s0  step   500 train 0.5832 val 0.5969
+[22:30:52] transformer s0  step   750 train 0.5150 val 0.5180
+[22:39:40] transformer s0  step  1000 train 0.4724 val 0.4736
+[22:43:35] transformer s0  step  1200 train 0.4662 val 0.4644
+[23:02:08] transformer seed 0: within=0.578 zs=0.286 10s=0.079 20s=0.189 45s=0.265 (2714s)
+[23:02:08] wrote part ms_gru_noaug_transformer

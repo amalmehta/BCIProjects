@@ -1,0 +1,5 @@
+[queue] started conformer_aug_s1
+[queue] started gru_baseline_s2
+[queue] started gru_noday_s0
+[queue] finished gru_baseline_s2 (exit -15)
+[queue] finished gru_noday_s0 (exit -15)

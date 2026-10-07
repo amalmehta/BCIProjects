@@ -1,0 +1,47 @@
+\label{sec:discussion}
+\paragraph{Cheap things first.} The largest cross-day gains here come from three
+inexpensive choices, not from the alignment machinery: training on several days, perturbing
+inputs during training~\cite{sussillo2016making}, and re-centring each electrode's statistics
+on every new day without labels~\cite{jarosiewicz2015virtual}. Together they keep a recurrent
+decoder within a few hundredths of its within-day $R^2$ for four months on this array. A
+practical consequence for a product like Telepathy is that the default "no-calibration" path
+should be a multi-day, augmented decoder with automatic re-centring; latent alignment is a
+second line of defence.
+
+\paragraph{When alignment earns its keep.} Alignment pays off when the electrode-to-neuron
+mapping changes: on the two re-mapping days and, slightly, more than 80 days after
+calibration. Neuralink's experience with thread retraction~\cite{neuralink2024prime} is
+exactly a large mapping change; our results suggest pairing a label-free change detector
+(the firing-rate correlation used here flags both events with a wide margin) with alignment
+that runs only when the detector fires, and with closed-loop checks before the adapted decoder
+is trusted. Alignment that runs unconditionally costs offline accuracy on ordinary days, and on one
+re-mapping day two of three seeds diverged. The closed-loop simulation adds a caveat in the
+other direction: on later days the aligned SLD adapter gave about three times the simulated
+bitrate of a fresh re-centred adapter (\cdBpsSldAligned{} vs \cdBpsSldRc{} bits/s) despite
+similar offline $R^2$, so the decision should be validated in closed loop, not offline.
+
+\paragraph{Few labels, few parameters.} When a few labelled reaches are available, the
+parameters to update matter more than the model class. Re-fitting everything (Wiener from
+scratch, full GRU fine-tuning) overfits one or five reaches; re-fitting only a day-specific
+input adapter, as POYO and NDT2 do with unit or context embeddings~\cite{azabou2023poyo,ye2023ndt2},
+never hurts. This argues for keeping a small, explicitly day-specific component in deployed
+decoders even if it brings nothing when no labels are available.
+
+\paragraph{Offline vs.\ closed loop.} The simulator reproduces the textbook warning that
+offline accuracy and closed-loop performance diverge~\cite{cunningham2011closed,willett2019principled}:
+a decoder with half the $R^2$ (Wiener) comes within reach of the best neural decoders after
+smoothing, ReFIT-style recalibration roughly doubles its bitrate, and the Kalman filter's offline
+weakness is not fixed by closed-loop relabelling. The simulator ranks decoders noisily (about
+$\pm$0.2--0.4 bits/s with four 60\,s sessions), so the closed-loop comparisons we trust are the
+large ones. A full-scale run (\texttt{configs/gpu.yaml}) uses ten sessions per condition.
+
+\paragraph{The Kalman baseline.} Our velocity Kalman filter is weak offline ($R^2\approx0.2$--0.3)
+because at 20\,ms bins its single smoothing knob trades lag against noise; position-augmented
+states, larger bins or intention-trained (ReFIT) closed-loop fits are the standard fixes and
+would narrow the gap. We report it as tuned, not as engineered for this setting.
+
+\paragraph{Distance to the product.} The best simulated decoder reaches about a third of the
+perfect-decoder ceiling, and every decoder loses throughput on larger grids, so precision at
+rest, not speed, is the bottleneck for a 96-channel signal. Neuralink's implant records from 1{,}024
+electrodes, and recent public reports describe pretraining on large neural datasets to shorten
+calibration; both are outside what can be tested on one public monkey dataset and a laptop CPU.

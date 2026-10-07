@@ -1,0 +1,84 @@
+{
+ "models": [
+  {
+   "file": "encoder.onnx",
+   "trained_on": "cifar",
+   "seed": 0,
+   "size_bytes": 209950,
+   "max_abs_diff_vs_torch_ua": 4.1961669921875e-05,
+   "onnx_ops": [
+    "Add",
+    "AveragePool",
+    "Concat",
+    "Constant",
+    "ConstantOfShape",
+    "Conv",
+    "Equal",
+    "Expand",
+    "Flatten",
+    "Gather",
+    "Mul",
+    "ReduceSum",
+    "Relu",
+    "Reshape",
+    "Resize",
+    "Shape",
+    "Sigmoid",
+    "Unsqueeze",
+    "Where"
+   ],
+   "opset": 17
+  },
+  {
+   "file": "encoder_letters.onnx",
+   "trained_on": "letters",
+   "seed": 0,
+   "size_bytes": 209950,
+   "max_abs_diff_vs_torch_ua": 4.1961669921875e-05,
+   "onnx_ops": [
+    "Add",
+    "AveragePool",
+    "Concat",
+    "Constant",
+    "ConstantOfShape",
+    "Conv",
+    "Equal",
+    "Expand",
+    "Flatten",
+    "Gather",
+    "Mul",
+    "ReduceSum",
+    "Relu",
+    "Reshape",
+    "Resize",
+    "Shape",
+    "Sigmoid",
+    "Unsqueeze",
+    "Where"
+   ],
+   "opset": 17
+  }
+ ],
+ "input": {
+  "name": "image",
+  "shape": [
+   "batch",
+   1,
+   64,
+   64
+  ],
+  "dtype": "float32",
+  "range": "[0, 1] grayscale, same preprocessing as baseline_encoder.json (luma, square crop, bilinear resize); full image spans the field of view"
+ },
+ "output": {
+  "name": "amplitude_ua",
+  "shape": [
+   "batch",
+   1024
+  ],
+  "dtype": "float32",
+  "meaning": "stimulation amplitude per electrode (microamps), electrode order as in electrodes.json"
+ },
+ "postprocess": "Apply the safety layer (clamp to [0, max_current_ua], keep top max_active_electrodes), zero electrodes with alive == 0, then render with electrodes.json's formula.",
+ "runtime": "onnxruntime-web (wasm backend); operator list per model under models[].onnx_ops"
+}

@@ -1,0 +1,280 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[letterpaper,margin=0.75in,columnsep=0.28in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.2em}
+
+\input{numbers.tex}
+
+\title{\textbf{Stable cursor decoding across months and a closed-loop WebGrid simulator for intracortical BCIs}}
+\author{Amal Mehta\thanks{Independent project; not affiliated with or endorsed by Neuralink.}}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A cursor brain--computer interface (BCI) is only as useful as its worst day: people with
+paralysis need control that works when they sit down, without a daily calibration block,
+and what they experience is throughput, not offline $R^2$. We study both problems on 24
+public sessions from a 96-electrode motor-cortex array spanning four months (monkey Indy,
+random-target cursor reaching). We compare Wiener, Kalman, factor-analysis-stabilised and GRU
+decoders with a \emph{Stable Latent Decoder} (SLD): identity-initialised per-day channel adapters
+feeding a shared recurrent latent model, trained on five calibration days with input
+perturbations and a masked-spike loss, and adapted to a new day without labels (NoMAD-style
+likelihood plus latent-moment matching) or with a few labelled reaches. Within a day, SLD and
+the GRU are tied ($R^2=\sldWithin$ vs \gruWithin; Wiener \wienerWithin). On \nKeep{} held-out
+days up to \maxDay{} days later, with no labels, re-centred SLD keeps $R^2=\keepSldRc$ (GRU
+\keepGruRc, Wiener \keepWienerRc, fixed Wiener \keepWienerFixed). The ablations show that
+multi-day training, input perturbation and per-channel re-centring do most of the work; latent
+alignment helps only far from calibration and on two sessions where electrode identities
+changed, which a label-free firing-rate check flags. With half the electrodes silenced SLD keeps
+$R^2=\stDropSldRcFifty$ against \stDropGruRcFifty{} for the GRU, and adapter-only few-shot
+recalibration is stable with a single labelled reach, where fine-tuning the whole GRU is not. A closed-loop WebGrid simulator, with a
+feedback-control user and a neural encoder fit to each day, shows that offline rankings do not
+transfer: on a \gridSize$\times$\gridSize{} grid the GRU reaches \gruBps{} bits/s, SLD \sldBps,
+the Wiener filter \wienerBps{} (\wienerRefitBps{} after ReFIT-style recalibration) and the Kalman
+filter \kalmanBps, against a \oracleBps{} bits/s perfect-decoder ceiling. All bitrates are
+simulated, not measured in people or animals.
+\end{abstract}
+
+\section{Introduction}
+Neuralink's Telepathy product lets a person with paralysis control a computer cursor by
+thought. Its public scorecard is Webgrid: click targets on a grid as fast as possible; the
+score is an achieved bitrate in bits per second (BPS)~\cite{neuralinkwebgrid}. Three
+machine-learning problems decide that number. The decoder must turn spiking into cursor
+velocity with low latency; it must keep working as the recorded neurons change from day to
+day (Neuralink's first participant lost signal when threads retracted, and recovered
+performance by changing the recording and decoding algorithms~\cite{neuralink2024prime});
+and it must be judged in closed loop, where the user corrects errors in real time and
+offline accuracy can mislead~\cite{gilja2012refit,cunningham2011closed,willett2019principled}.
+
+This report builds and evaluates a small, complete stack for those three problems on public
+data. Contributions:
+\begin{enumerate}
+\item A cross-day evaluation in the FALCON style~\cite{karpowicz2024falcon} on 24 sessions
+(5 calibration, 19 held-out over four months) of the O'Doherty random-target dataset
+\cite{odoherty2017data}, with zero-label, few-shot and electrode-failure conditions and
+strong classical baselines.
+\item The Stable Latent Decoder: day-specific identity-initialised channel adapters and a
+shared causal latent model, trained with augmentation~\cite{sussillo2016making} and
+masked-spike reconstruction~\cite{ye2021ndt}, adapted by a NoMAD-style
+objective~\cite{karpowicz2025nomad} or by adapter-only few-shot learning.
+\item A closed-loop WebGrid simulator whose neural encoder is fit to each day and whose noise
+is calibrated so that open-loop decoding accuracy matches real data, with per-decoder
+tuning of gain, smoothing and click caution, a perfect-decoder ceiling, a grid-size sweep
+and a ReFIT-style closed-loop recalibration.
+\item An honest negative result and a practical rule: on these data, re-centring each
+electrode's statistics captures most of the benefit latent alignment is meant to provide;
+alignment matters when electrode identities change, which a label-free check can detect.
+\end{enumerate}
+
+\section{Background}
+\paragraph{Signals and decoders.} Clinical intracortical BCIs decode per-electrode
+threshold crossings binned at 10--50\,ms, without spike sorting. Cursor control decodes
+\emph{velocity}; the Kalman filter~\cite{wu2006kalman} and its closed-loop recalibrated
+variant ReFIT-KF~\cite{gilja2012refit} long set the standard, and neural-network decoders
+now beat them online~\cite{willsey2022realtime}. Grid-task bitrate~\cite{nuyujukian2015keyboard}
+\begin{equation}
+  B = \frac{\log_2(N-1)\,\max(S_c - S_i, 0)}{t}
+  \label{eq:bps}
+\end{equation}
+($N$ targets, $S_c$/$S_i$ correct/incorrect selections in $t$ seconds) is the field's
+throughput metric; people with BrainGate arrays reached 1.4--3.7 bits/s~\cite{pandarinath2017high},
+and Neuralink reports participants around 8--10+ BPS on Webgrid.
+
+\paragraph{Nonstationarity.} Units drift, appear and vanish across days. Latent population
+dynamics stay stable~\cite{gallego2020long}, which motivates aligning each day into a fixed
+latent space: factor-analysis alignment of stable channels~\cite{degenhart2020stabilization},
+adversarial alignment~\cite{farshchian2019adversarial}, and NoMAD, which freezes an LFADS
+dynamics model and learns an alignment network by maximising spike likelihood while
+matching latent distributions~\cite{karpowicz2025nomad,pandarinath2018lfads}. A cheaper
+alternative tracks feature means and recalibrates on task data~\cite{jarosiewicz2015virtual};
+pretrained multi-session transformers adapt with few labels~\cite{ye2023ndt2,azabou2023poyo,ye2025ndt3};
+pseudo-label recalibration has kept a handwriting BCI stable for a year~\cite{fan2023plug}.
+FALCON standardises these comparisons~\cite{karpowicz2024falcon}.
+
+\section{Data}
+We use 24 sessions from monkey Indy in the O'Doherty et al.\ dataset~\cite{odoherty2017data,makin2018superior}
+(Zenodo 583331), recorded from 15 Sept 2016 to 31 Jan 2017 with a 96-electrode Utah array in
+primary motor cortex while the monkey moved a cursor between random targets with its arm
+(the session \texttt{indy\_20161005\_06} is NLB's MC\_RTT~\cite{pei2021nlb}). For each electrode
+we merge all sorted units and unsorted threshold crossings into one count per 20\,ms bin.
+Cursor velocity is the derivative of the Gaussian-smoothed (40\,ms) cursor position. The
+decoding target at bin $t$ is velocity at $t+\ell$; $\ell=\lagMs$\,ms was selected on
+calibration-day validation data. Each session lasts 6--14 minutes (300--640 reaches). The
+first five sessions (days 0--15) are calibration days; the other 19 (days 20--138) are held out.
+Within every session the first 60\,\% is the train block, the next 10\,\% validation and the
+last 30\,\% test. On a held-out day the train block is used only as \emph{unlabelled}
+spikes, except for the first $N$ reaches in the few-shot condition.
+
+\section{Methods}
+\subsection{Baselines}
+\textbf{Wiener filter}: ridge regression from 10 bins (200\,ms) of z-scored counts to
+velocity. \textbf{Kalman filter}: velocity state, linear-Gaussian observation of causally
+smoothed counts, steady-state gain; smoothing window and an observation-noise scale tuned on
+validation. Both are fit per day (within-day reference) and on all five calibration days
+(the deployed version). \textbf{FA stabiliser} after Degenhart et al.\ \cite{degenhart2020stabilization}:
+10-factor FA on calibration days, ridge decoder on lagged factors; on a new day FA is refit
+without labels, the 60\,\% of channels whose loadings agree best are found iteratively, and
+an orthogonal Procrustes map aligns the new factors. \textbf{GRU}: input layer, one GRU layer
+(128 units), linear readout, trained on all calibration days.
+
+\paragraph{Re-centring.} Every decoder normalises each channel by the mean and standard
+deviation of the current day. A \emph{fixed} decoder keeps the statistics of the last
+calibration day; a \emph{re-centred} decoder recomputes them from the new day's unlabelled
+spikes~\cite{jarosiewicz2015virtual}. This costs nothing and needs no labels, so we give it to every
+baseline.
+
+\subsection{Stable Latent Decoder}
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\scriptsize, node distance=0.32cm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=0.62cm, inner sep=2pt, fill=#1},
+  box/.default=white, >={Stealth[length=4pt]}]
+\node[box=gray!10] (x) {spikes $\mathbf{x}_t$\\[-1pt]96 ch, z-scored};
+\node[box=orange!15, right=of x] (A) {adapter\\[-1pt]$A_k\mathbf{x}_t+\mathbf{b}_k$};
+\node[box=blue!10, right=of A] (R) {read-in\\[-1pt]GELU};
+\node[box=blue!10, right=of R] (G) {causal\\[-1pt]GRU};
+\node[box=blue!10, above right=0.05cm and 0.32cm of G] (V) {velocity\\[-1pt]head};
+\node[box=orange!15, below right=0.05cm and 0.32cm of G] (P) {rates\\[-1pt]$g_k\!\odot\!W\mathbf{h}+\mathbf{c}_k$};
+\draw[->] (x)--(A); \draw[->] (A)--(R); \draw[->] (R)--(G);
+\draw[->] (G.east)--(V.west); \draw[->] (G.east)--(P.west);
+\node[below=0.22cm of A, align=center, text=orange!60!black] (d) {per-day (orange)};
+\node[below=0.22cm of R, xshift=0.6cm, align=center, text=blue!60!black] {shared (blue)};
+\end{tikzpicture}
+\caption{Stable Latent Decoder. Only the adapter $(A_k,\mathbf{b}_k)$ and the rate gain/offset
+$(g_k,\mathbf{c}_k)$ are specific to day $k$. A new day starts from $A=I$, i.e.\ from the
+re-centred decoder.}
+\label{fig:arch}
+\end{figure}
+
+For day $k$ with z-scored counts $\mathbf{x}_t\in\mathbb{R}^{C}$ (Fig.~\ref{fig:arch}):
+\begin{align}
+  \mathbf{u}_t &= \mathrm{GELU}\big(W_{\mathrm{in}}(A_k\mathbf{x}_t + \mathbf{b}_k)\big), \\
+  \mathbf{h}_t &= \mathrm{LN}\big(\mathbf{u}_t + \mathrm{GRU}(\mathbf{u}_{\le t})\big), \\
+  \hat{\mathbf{v}}_t &= W_v\mathbf{h}_t + \mathbf{b}_v, \qquad
+  \log\bm{\lambda}_t = \mathbf{g}_k\odot(W_r\mathbf{h}_t) + \mathbf{c}_k .
+\end{align}
+$A_k\in\mathbb{R}^{C\times C}$ is initialised to the identity. Training on the calibration
+days minimises
+\begin{multline}
+  \mathcal{L} = \lVert\hat{\mathbf{v}}-\mathbf{v}\rVert^2
+  + \beta\,\mathrm{NLL}_{\text{Pois}}\!\left(\mathbf{n}_M \mid \bm\lambda_M\right) \\
+  + \gamma\textstyle\sum_k\big(\lVert A_k-I\rVert_F^2+\lVert\mathbf{b}_k\rVert^2\big),
+\end{multline}
+where on half of each batch a random 20\,\% of channels $M$ are zeroed at the input and their
+raw counts $\mathbf{n}_M$ must be predicted from the others (masked-channel reconstruction,
+$\beta=0.5$, $\gamma=0.01$). Inputs are perturbed as in Sussillo et al.~\cite{sussillo2016making}:
+per-channel gain and offset jitter ($\sigma=0.1$) and silencing of a random 0--15\,\% of
+channels. Training uses 64-bin windows (first 24 bins are context), AdamW with a one-cycle
+schedule, and model selection on validation $R^2$. A banded-attention causal transformer
+with ALiBi position bias is available as an alternative backbone.
+
+\paragraph{Unsupervised alignment.} On a new day we add a slot $k^\ast$ with $A=I$ and
+freeze everything except $(A_{k^\ast},\mathbf{b}_{k^\ast},\mathbf{g}_{k^\ast},\mathbf{c}_{k^\ast})$.
+Following NoMAD~\cite{karpowicz2025nomad}, we minimise the masked-spike Poisson NLL of the
+new day's unlabelled spikes through the frozen dynamics, plus
+$\eta\,\mathrm{KL}\big(\mathcal N(\bm\mu_{k^\ast},\Sigma_{k^\ast})\,\|\,\mathcal N(\bm\mu_0,\Sigma_0)\big)$
+between Gaussian fits to the new day's latents $\mathbf{h}$ and to the calibration days' latents
+($\eta=0.1$), plus the identity penalty; 300 Adam steps.
+
+\paragraph{Few-shot recalibration.} With $N$ labelled reaches we fit the same day-specific
+parameters to the velocity loss (adapter only, 150 steps), optionally together with the
+unsupervised terms after alignment. Baselines: a Wiener filter fit from scratch on the $N$
+reaches; a Wiener filter whose ridge penalty shrinks toward the calibrated weights,
+$\lVert Y-ZW\rVert^2+\alpha\lVert W-W_0\rVert^2$; and fine-tuning all GRU weights.
+
+\subsection{Closed-loop WebGrid simulator}
+\paragraph{Encoding model.} For each simulated day we fit an MLP (two hidden layers of 128)
+from intended velocity and speed over a window of $-100$ to $+140$\,ms to log firing rates of
+all 96 channels, by Poisson likelihood on the train block. The window extends into the
+``future'' of the decoding target because motor cortex leads movement. Arm position is not an
+input: a paralysed user has no arm posture signal. Shared variability is added in log-rate
+space as a rank-4 AR(1) process ($\tau=200$\,ms) with loadings from factor analysis of
+smoothed residuals; its scale is chosen from $\{0,0.25,\dots,1\}$ so that the Wiener filter's
+$R^2$ on simulated spikes, generated from the real test-block velocities, matches its real
+test $R^2$.
+
+\paragraph{User model.} Intended velocity follows a delayed feedback controller in the
+spirit of optimal-feedback-control user models~\cite{willett2019principled}. The user sees the
+cursor 100\,ms late, predicts its present position with an efference copy of its own recent
+intentions, and commands $\mathbf{v}^{\mathrm{cmd}} = v_{\max}(1-e^{-d/d_0})\,\hat{\mathbf{e}}$
+toward the target centre ($d$ the predicted distance; zero inside 0.35 cell). $v_{\max}=\vmax$\,mm/s
+and $d_0=\dzero$\,mm are fit to the monkey's own reaches. The command passes a first-order
+80\,ms motor lag and 10\,\% signal-dependent noise.
+
+\paragraph{Task.} A $130\times130$\,mm workspace (the monkey's reach range) is divided into an
+$n\times n$ grid; one random cell is the target. The user clicks when the delayed view and the
+prediction both place the cursor inside the target for a hold time and the cursor looks slow;
+the click registers 40\,ms later, is missed with probability 0.05, and spurious clicks occur at
+0.05/s. A correct selection spawns a new target. Bitrate follows Eq.~\ref{eq:bps} over 60\,s.
+For each decoder, the cursor gain $\{0.75,1,1.5\}$, exponential velocity smoothing $\{0,0.6\}$ and
+the user's hold time $\{0.1,0.25\}$\,s are tuned on two separate 30\,s sessions and frozen.
+The oracle moves the cursor with the true intention at the same latency as a decoder.
+
+\paragraph{ReFIT in simulation.} For the linear decoders we also run 120\,s of closed-loop use,
+relabel the intended velocity by rotating the decoded velocity toward the target (zero on the
+target)~\cite{gilja2012refit}, refit, re-tune and re-evaluate.
+
+\section{Results}
+\input{results.tex}
+
+\section{Discussion}
+\input{discussion.tex}
+
+\section{Limitations}
+\begin{itemize}
+\item \textbf{Animal, arm, one array.} The spikes come from a monkey moving its arm, not a person
+with paralysis attempting movement, from a 96-electrode Utah array rather than Neuralink's
+1{,}024-electrode threads. Real clinical nonstationarity (thread retraction) may be larger and
+different in kind.
+\item \textbf{Simulated closed loop.} The bitrates are produced by a model of the user and of the
+neural response to intention. Open-loop fidelity is checked (Fig.~\ref{fig:fidelity}), but user
+learning, fatigue, attention and real click decoding are modelled, not measured. Absolute
+bitrates are not comparable to human Webgrid scores; rankings and trends are the output.
+\item \textbf{CPU scale.} Models are small (0.11\,M parameters for the GRU, 0.17\,M for SLD), trained for 1{,}500 steps (11--24 minutes each)
+with three seeds on a shared laptop CPU; few-shot curves use one seed on every fourth held-out
+day; ablations use one seed. Differences of a few hundredths of $R^2$ are within seed noise.
+\item \textbf{Single subject.} Cross-subject transfer and pretraining at scale~\cite{ye2025ndt3,azabou2023poyo}
+are not tested.
+\end{itemize}
+
+\section{Broader impact and safety}
+Cursor BCIs give people with paralysis back independent use of a computer; reliability across
+days is a safety and dignity issue as much as a performance one: a decoder that silently
+degrades produces unintended clicks. Two practical lessons from this study apply to deployment.
+First, cheap label-free safeguards (per-channel re-centring) should be on by default and their
+effect monitored. Second, unsupervised adaptation can make things worse when its assumptions
+fail, so it needs a guard (here an identity penalty and a start from the re-centred decoder) and
+closed-loop monitoring. The simulator is a development tool for ranking decoders and catching
+closed-loop failures before user time is spent; it does not replace clinical evaluation. All
+data are public, de-identified animal recordings.
+
+\section{Reproducing at full scale}
+Everything here is produced by \texttt{scripts/run\_cpu.sh} (CPU config \texttt{configs/cpu.yaml}).
+\texttt{scripts/run\_gpu.sh} runs the same code with \texttt{configs/gpu.yaml} on a Linux CUDA
+machine (device auto-detected, mixed precision): 6{,}000 training steps with batch 128, five seeds,
+few-shot curves on every held-out day with five seeds, unsupervised alignment of every ablation on
+every day, and ten simulated WebGrid sessions per condition. Requirements are listed in
+\texttt{requirements-gpu.txt}; the script downloads the data from Zenodo. Results land in
+\texttt{results/}, and \texttt{python -m telepathy.report} regenerates the numbers and tables in this paper.
+
+{\small
+\bibliographystyle{unsrtnat}
+\bibliography{refs}
+}
+\end{document}

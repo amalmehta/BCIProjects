@@ -1,0 +1,89 @@
+{
+ "heldout_session": "t15.2024.03.15",
+ "base_model": "gru_aug_s0",
+ "test_sentences": 48,
+ "curve": [
+  {
+   "mode": "day_layer",
+   "n_sentences": 10,
+   "wer": 0.7914364640883977,
+   "per": 0.6247654784240151,
+   "repeats": 2
+  },
+  {
+   "mode": "day_layer",
+   "n_sentences": 25,
+   "wer": 0.7541436464088398,
+   "per": 0.5878674171357099,
+   "repeats": 2
+  },
+  {
+   "mode": "day_layer",
+   "n_sentences": 50,
+   "wer": 0.7417127071823204,
+   "per": 0.5856785490931833,
+   "repeats": 2
+  },
+  {
+   "mode": "day_layer",
+   "n_sentences": 100,
+   "wer": 0.7513812154696133,
+   "per": 0.5928705440900564,
+   "repeats": 2
+  },
+  {
+   "mode": "day_layer",
+   "n_sentences": 200,
+   "wer": 0.729281767955801,
+   "per": 0.5712945590994372,
+   "repeats": 2
+  },
+  {
+   "mode": "full",
+   "n_sentences": 10,
+   "wer": 0.7872928176795579,
+   "per": 0.6119449656035021,
+   "repeats": 2
+  },
+  {
+   "mode": "full",
+   "n_sentences": 25,
+   "wer": 0.7790055248618785,
+   "per": 0.6047529706066292,
+   "repeats": 2
+  },
+  {
+   "mode": "full",
+   "n_sentences": 50,
+   "wer": 0.7679558011049724,
+   "per": 0.600375234521576,
+   "repeats": 2
+  },
+  {
+   "mode": "full",
+   "n_sentences": 100,
+   "wer": 0.7527624309392265,
+   "per": 0.6006879299562227,
+   "repeats": 2
+  },
+  {
+   "mode": "full",
+   "n_sentences": 200,
+   "wer": 0.75,
+   "per": 0.5891181988742964,
+   "repeats": 2
+  },
+  {
+   "mode": "reuse",
+   "n_sentences": 0,
+   "wer": 0.8176795580110497,
+   "per": 0.631019387116948,
+   "repeats": 1
+  }
+ ],
+ "modes": {
+  "reuse": "no new data: reuse the latest day's input layer",
+  "day_layer": "fine-tune only the new day's input layer",
+  "full": "fine-tune the whole network"
+ }
+}

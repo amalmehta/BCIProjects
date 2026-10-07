@@ -1,0 +1,79 @@
+# Seconds-long smoke test of the full pipeline (used by scripts and CI). Not for results.
+threads: 2
+decoding:
+  val_frac: 0.15
+  seeds:
+  - 0
+  recal_seconds:
+  - 10
+  wiener:
+    lags:
+    - 5
+    stride: 2
+    smooth_tau: 2.0
+    alphas:
+    - 0.1
+    scratch_alphas:
+    - 10.0
+  kalman:
+    smooth_taus:
+    - 0.0
+    obs_lags:
+    - 0
+    decays:
+    - 0.98
+  neural:
+    variants:
+    - gru
+    - ms_gru
+    - transformer
+    multi_seed:
+    - gru
+    - ms_gru
+    d_in: 64
+    hidden: 192
+    tf_hidden: 128
+    tf_context: 50
+    tf_layers: 2
+    layers: 1
+    dropout: 0.2
+    window: 64
+    batch: 32
+    steps: 6
+    lr: 0.002
+    weight_decay: 0.01
+    eval_every: 3
+    patience: 4
+    aug:
+      gain_sd: 0.1
+      offset_sd: 0.1
+      channel_drop: 0.05
+      noise_sd: 0.0
+    recal_steps: 3
+    recal_batch: 16
+    recal_lr: 0.003
+    recal_anchor: 0.01
+    ft_lr: 0.0005
+    ablate_ft_all: true
+closed_loop:
+  calib_day: '1925-01-20'
+  latent_sigma: 0.3
+  gain_exponent: 0.5
+  kappas:
+  - 1.0
+  - 2.0
+  methods:
+  - direct
+  - fixed
+  - distance
+  - confidence
+  - hindsight
+  - dasa
+  n_objects: 3
+  episodes: 2
+  change_of_mind_episodes: 2
+  ablation_episodes: 1
+  tune_episodes: 1
+  max_steps: 150
+  workers: 2
+  seed: 1234

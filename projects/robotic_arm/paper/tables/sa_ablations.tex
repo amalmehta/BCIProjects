@@ -1,0 +1,16 @@
+\begin{tabular}{l ccc ccc}
+\toprule
+& \multicolumn{3}{c}{Nominal (R$^2$ 0.35)} & \multicolumn{3}{c}{Weakest (R$^2$ 0.10)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Variant & Std. & Change & Clutter & Std. & Change & Clutter \\
+\midrule
+DASA (full) & 1.00 & 1.00 & 1.00 & 0.93 & 0.85 & 0.87 \\
+$-$ consistency gate & 1.00 & 1.00 & 1.00 & 0.95 & 0.73 & 0.87 \\
+$-$ switching prior & 1.00 & 0.97 & 1.00 & 0.93 & 0.75 & 0.88 \\
+$-$ autocorrelation correction ($\tau{=}1$) & 1.00 & 0.98 & 0.97 & 0.70 & 0.47 & 0.27 \\
+$-$ calibrated error model ($G{=}I,\Sigma{=}I,\tau{=}1$) & 1.00 & 1.00 & 1.00 & 0.77 & 0.63 & 0.68 \\
+mismatched user model (speed $\times0.5$) & 1.00 & 0.98 & 1.00 & 0.83 & 0.80 & 0.63 \\
+Confidence blend + switching prior & 0.10 & 0.03 & 0.07 & 0.00 & 0.02 & 0.02 \\
+Confidence + switching, $\beta$ re-tuned & 0.30 & 0.35 & 0.20 & 0.02 & 0.02 & 0.00 \\
+\bottomrule
+\end{tabular}

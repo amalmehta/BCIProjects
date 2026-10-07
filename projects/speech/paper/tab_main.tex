@@ -1,0 +1,12 @@
+\begin{tabular}{lcccc}
+\toprule
+Model & PER & \multicolumn{3}{c}{WER} \\ \cmidrule(lr){2-2}\cmidrule(lr){3-5}
+ & greedy & no LM & 3-gram & +GPT-2 \\
+\midrule
+GRU baseline (published recipe) (2 seeds) & 60.2\,$\pm$\,17.9 & 92.8\,$\pm$\,6.1 & 81.0\,$\pm$\,20.5 & 66.5$^\dagger$ \\
+\quad ensemble of 2 & 75.3 & 95.7 & 87.2 & -- \\
+GRU + time mask + electrode dropout (2 seeds) & 59.7\,$\pm$\,14.8 & 92.1\,$\pm$\,5.8 & 81.1\,$\pm$\,16.4 & -- \\
+\quad ensemble of 2 & 75.7 & 95.3 & 85.9 & -- \\
+Causal Conformer + SC-CTC (1 seed) & 38.8 & 83.2 & 52.1 & 51.7 \\
+\bottomrule
+\end{tabular}

@@ -1,0 +1,109 @@
+# Full-scale configuration for a CUDA GPU box (scripts/run_gpu.sh). Same code as cpu.yaml;
+# the device is auto-detected and bfloat16 autocast is used on CUDA.
+threads: 8
+decoding:
+  val_frac: 0.15
+  seeds:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  recal_seconds:
+  - 5
+  - 10
+  - 20
+  - 30
+  - 45
+  wiener:
+    lags:
+    - 5
+    - 10
+    - 15
+    - 20
+    stride: 2
+    smooth_tau: 2.0
+    alphas:
+    - 0.01
+    - 0.1
+    - 1.0
+    scratch_alphas:
+    - 1.0
+    - 10.0
+    - 100.0
+  kalman:
+    smooth_taus:
+    - 0.0
+    - 3.0
+    obs_lags:
+    - 0
+    - 3
+    decays:
+    - null
+    - 0.98
+    - 0.95
+  neural:
+    variants:
+    - gru
+    - gru_noaug
+    - transformer
+    - ms_gru
+    - ms_gru_noaug
+    multi_seed:
+    - gru
+    - transformer
+    - ms_gru
+    d_in: 128
+    hidden: 512
+    tf_hidden: 256
+    tf_context: 50
+    tf_layers: 4
+    layers: 2
+    dropout: 0.2
+    window: 200
+    batch: 128
+    steps: 20000
+    lr: 0.002
+    weight_decay: 0.01
+    eval_every: 500
+    patience: 8
+    aug:
+      gain_sd: 0.1
+      offset_sd: 0.1
+      channel_drop: 0.05
+      noise_sd: 0.0
+    recal_steps: 500
+    recal_batch: 32
+    recal_lr: 0.003
+    recal_anchor: 0.01
+    ft_lr: 0.0005
+    ablate_ft_all: true
+closed_loop:
+  calib_day: '1925-01-20'
+  latent_sigma: 0.3
+  gain_exponent: 0.5
+  kappas:
+  - 0.5
+  - 0.75
+  - 1.0
+  - 1.25
+  - 1.5
+  - 2.0
+  - 2.5
+  - 3.0
+  - 4.0
+  methods:
+  - direct
+  - fixed
+  - distance
+  - confidence
+  - hindsight
+  - dasa
+  n_objects: 3
+  episodes: 300
+  change_of_mind_episodes: 300
+  ablation_episodes: 300
+  tune_episodes: 60
+  max_steps: 1000
+  workers: 8
+  seed: 1234

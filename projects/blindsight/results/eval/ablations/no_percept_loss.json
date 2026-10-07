@@ -1,0 +1,18 @@
+[
+ {
+  "encoder": "learned",
+  "ssim": 0.5079889297485352,
+  "ssim_patient_std": 0.004842652424707771,
+  "ssim_lowpass": 0.42563101649284363,
+  "psnr": 10.215973854064941,
+  "acc": 0.11599999666213989,
+  "active_electrodes": 68.80149841308594,
+  "charge_nc_per_phase": 1.3776351377216018e-14,
+  "max_amp_ua": 1.1220465203666541e-13,
+  "decoder_ssim": 0.09332026541233063,
+  "variant": "no_percept_loss",
+  "seed": 0,
+  "layout": "threads_1024",
+  "n_electrodes": 1024
+ }
+]

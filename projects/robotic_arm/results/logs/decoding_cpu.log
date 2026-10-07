@@ -1,0 +1,13 @@
+[18:37:23] train blocks 13 over 6 days; minival 13; held-out days 7
+[18:38:28] wiener day: lags=15 alpha=0.1 within=0.321 cross0=0.110 (63s)
+[18:39:31] wiener global: lags=15 alpha=0.1 within=0.319 cross0=0.048 (62s)
+[18:40:45] wiener few-shot 10s: scratch=-0.121 pooled=0.115
+[18:41:46] wiener few-shot 20s: scratch=0.002 pooled=0.116
+[18:42:59] wiener few-shot 45s: scratch=0.035 pooled=0.122
+[18:43:58] kalman tau=3.0 lag=0 decay=0.98 within=0.242 cross0=0.039
+[18:47:50] gru s0  step   250 train 0.3709 val 0.6260
+[18:50:41] gru s0  step   500 train 0.4901 val 0.5261
+[18:55:59] gru s0  step   750 train 0.4121 val 0.4869
+[19:01:03] gru s0  step  1000 train 0.3834 val 0.4529
+[19:06:01] gru s0  step  1250 train 0.3624 val 0.4286
+[19:10:50] gru s0  step  1500 train 0.4492 val 0.4346

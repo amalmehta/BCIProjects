@@ -1,0 +1,2 @@
+[gru_baseline] train=1925 dev=215 test=426 days=11
+{"step": 50, "loss": 3.199141263961792, "dev_per": 0.813588850174216, "minutes": 17.996837615966797, "lr": 0.002}

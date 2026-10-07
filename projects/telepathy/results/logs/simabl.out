@@ -1,0 +1,6 @@
+[19:36:12] sim ablation sld_no_aug: 1.96 +- 0.09 bps ({'gain': 1.5, 'smooth': 0.6, 'hold': 0.1})
+[19:45:53] sim ablation sld_no_ssl: 0.99 +- 0.23 bps ({'gain': 1.5, 'smooth': 0.0, 'hold': 0.1})
+[19:51:57] sim ablation sld_no_adapters: 2.07 +- 0.42 bps ({'gain': 1.5, 'smooth': 0.0, 'hold': 0.1})
+[20:01:22] sim ablation sld_transformer: 0.99 +- 0.14 bps ({'gain': 1.5, 'smooth': 0.6, 'hold': 0.1})
+[20:07:29] sim ablation gru_aug: 1.33 +- 0.21 bps ({'gain': 1.5, 'smooth': 0.0, 'hold': 0.1})
+[20:07:29] stage simabl finished in 2437s

@@ -1,0 +1,133 @@
+[18:04:32] kappa 0.5: simulated offline R2 0.102 (real 0.274); err tau 21.5
+[18:04:47] kappa 0.75: simulated offline R2 0.216 (real 0.274); err tau 21.3
+[18:05:02] kappa 1.0: simulated offline R2 0.339 (real 0.274); err tau 19.1
+[18:05:18] kappa 1.5: simulated offline R2 0.501 (real 0.274); err tau 20.2
+[18:05:34] kappa 2.0: simulated offline R2 0.624 (real 0.274); err tau 18.7
+[18:05:50] kappa 3.0: simulated offline R2 0.743 (real 0.274); err tau 18.3
+[18:05:50] real R2 0.274; simulated R2 by kappa: {0.5: 0.102, 0.75: 0.216, 1.0: 0.339, 1.5: 0.501, 2.0: 0.624, 3.0: 0.743}
+[18:08:29] tuned fixed: {'arb': {'alpha_const': 0.7}, 'infer': {'beta': 5.0}} (objective 0.708)
+[18:09:42] tuned confidence: {'arb': {}, 'infer': {'beta': 40.0}} (objective 0.658)
+[18:11:06] tuned hindsight: {'arb': {'ho_lambda': 1.0}, 'infer': {'beta': 20.0}} (objective 0.624)
+[18:11:48] tuned distance: {'arb': {'envelope': 0.15}, 'infer': {}} (objective 0.348)
+[18:12:37] tuned dasa: {'arb': {'gate_c0': 2.5}, 'infer': {}} (objective 0.929)
+[18:13:28] kappa 0.5 direct     success 0.00 wrong 0.00 T None share 1.00  [603s]
+[18:14:09] kappa 0.5 fixed      success 0.53 wrong 0.12 T 10.560625000000002 share 0.29  [644s]
+[18:14:52] kappa 0.5 distance   success 0.65 wrong 0.07 T 12.439487179487179 share 0.86  [687s]
+[18:15:29] kappa 0.5 confidence success 0.65 wrong 0.05 T 10.096923076923074 share 0.22  [724s]
+[18:16:16] kappa 0.5 hindsight  success 0.65 wrong 0.27 T 8.622051282051283 share 0.45  [771s]
+[18:16:53] kappa 0.5 dasa       success 0.82 wrong 0.02 T 8.297142857142859 share 0.48  [809s]
+[18:17:41] kappa 0.75 direct     success 0.00 wrong 0.00 T None share 1.00  [857s]
+[18:18:15] kappa 0.75 fixed      success 0.75 wrong 0.00 T 8.562666666666665 share 0.29  [890s]
+[18:18:44] kappa 0.75 distance   success 0.93 wrong 0.05 T 10.415000000000001 share 0.80  [919s]
+[18:19:12] kappa 0.75 confidence success 0.82 wrong 0.00 T 7.8914285714285715 share 0.22  [948s]
+[18:19:55] kappa 0.75 hindsight  success 0.83 wrong 0.05 T 7.652 share 0.47  [991s]
+[18:20:15] kappa 0.75 dasa       success 1.00 wrong 0.00 T 5.757333333333333 share 0.36  [1011s]
+[18:21:04] kappa 1.0 direct     success 0.05 wrong 0.00 T 18.52 share 1.00  [1060s]
+[18:21:29] kappa 1.0 fixed      success 0.90 wrong 0.00 T 7.321851851851853 share 0.29  [1084s]
+[18:21:51] kappa 1.0 distance   success 0.98 wrong 0.02 T 7.853898305084746 share 0.75  [1106s]
+[18:22:12] kappa 1.0 confidence success 0.87 wrong 0.03 T 6.627307692307692 share 0.23  [1128s]
+[18:22:45] kappa 1.0 hindsight  success 0.95 wrong 0.00 T 6.7094736842105265 share 0.49  [1161s]
+[18:23:04] kappa 1.0 dasa       success 1.00 wrong 0.00 T 4.9590000000000005 share 0.30  [1179s]
+[18:23:48] kappa 1.5 direct     success 0.27 wrong 0.00 T 13.73875 share 1.00  [1224s]
+[18:24:06] kappa 1.5 fixed      success 0.95 wrong 0.00 T 5.040000000000001 share 0.28  [1241s]
+[18:24:23] kappa 1.5 distance   success 1.00 wrong 0.00 T 5.9 share 0.69  [1258s]
+[18:24:38] kappa 1.5 confidence success 1.00 wrong 0.00 T 5.2363333333333335 share 0.22  [1273s]
+[18:25:04] kappa 1.5 hindsight  success 0.95 wrong 0.00 T 5.034385964912281 share 0.52  [1299s]
+[18:25:20] kappa 1.5 dasa       success 1.00 wrong 0.00 T 4.426333333333334 share 0.26  [1315s]
+[18:25:52] kappa 2.0 direct     success 0.73 wrong 0.00 T 10.394545454545455 share 1.00  [1347s]
+[18:26:05] kappa 2.0 fixed      success 1.00 wrong 0.00 T 4.690333333333332 share 0.27  [1361s]
+[18:26:20] kappa 2.0 distance   success 1.00 wrong 0.00 T 5.195333333333334 share 0.67  [1376s]
+[18:26:33] kappa 2.0 confidence success 1.00 wrong 0.00 T 4.492666666666667 share 0.21  [1389s]
+[18:26:51] kappa 2.0 hindsight  success 1.00 wrong 0.00 T 4.209333333333333 share 0.56  [1407s]
+[18:27:07] kappa 2.0 dasa       success 1.00 wrong 0.00 T 4.279 share 0.23  [1422s]
+[18:27:28] kappa 3.0 direct     success 0.97 wrong 0.00 T 8.390344827586206 share 1.00  [1443s]
+[18:27:41] kappa 3.0 fixed      success 1.00 wrong 0.00 T 4.375333333333333 share 0.25  [1456s]
+[18:27:55] kappa 3.0 distance   success 1.00 wrong 0.00 T 5.074333333333334 share 0.66  [1470s]
+[18:28:08] kappa 3.0 confidence success 1.00 wrong 0.00 T 4.271000000000001 share 0.20  [1483s]
+[18:28:26] kappa 3.0 hindsight  success 1.00 wrong 0.00 T 4.031000000000001 share 0.58  [1501s]
+[18:28:40] kappa 3.0 dasa       success 1.00 wrong 0.00 T 4.236666666666666 share 0.20  [1516s]
+[18:29:19] change-of-mind direct     success 0.00 wrong 0.00 yield 3.6900000000000004
+[18:29:43] change-of-mind fixed      success 0.72 wrong 0.05 yield 3.77
+[18:30:09] change-of-mind distance   success 0.35 wrong 0.50 yield 2.4299999999999997
+[18:30:30] change-of-mind confidence success 0.78 wrong 0.13 yield 2.88
+[18:30:58] change-of-mind hindsight  success 0.73 wrong 0.23 yield 3.1500000000000004
+[18:31:20] change-of-mind dasa       success 1.00 wrong 0.00 yield 1.21
+[18:31:52] clutter direct     success 0.00 wrong 0.00 T None
+[18:32:18] clutter fixed      success 0.53 wrong 0.03 T 9.355625
+[18:32:36] clutter distance   success 0.92 wrong 0.07 T 8.405818181818182
+[18:32:59] clutter confidence success 0.63 wrong 0.07 T 8.291578947368421
+[18:33:42] clutter hindsight  success 0.53 wrong 0.10 T 8.6375
+[18:33:58] clutter dasa       success 1.00 wrong 0.00 T 5.989666666666666
+[18:35:08] authority dasa       alpha_max=0.4: success 0.74 share 0.67 T 11.083370786516854
+[18:35:51] authority dasa       alpha_max=0.6: success 0.99 share 0.53 T 7.702857142857144
+Process SpawnPoolWorker-3:
+Traceback (most recent call last):
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 199, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 410, in _send_bytes
+    self._send(header + buf)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 367, in _send
+    n = write(self._handle, buf)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 199, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 410, in _send_bytes
+    self._send(header + buf)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 367, in _send
+    n = write(self._handle, buf)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+Process SpawnPoolWorker-2:
+Traceback (most recent call last):
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/pool.py", line 131, in worker
+    put((job, i, result))
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 199, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 410, in _send_bytes
+    self._send(header + buf)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 367, in _send
+    n = write(self._handle, buf)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/pool.py", line 136, in worker
+    put((job, i, (False, wrapped)))
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/queues.py", line 377, in put
+    self._writer.send_bytes(obj)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 199, in send_bytes
+    self._send_bytes(m[offset:offset + size])
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 410, in _send_bytes
+    self._send(header + buf)
+  File "/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/connection.py", line 367, in _send
+    n = write(self._handle, buf)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+BrokenPipeError: [Errno 32] Broken pipe
+/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
+wrote (run stopped: minival overlap found)

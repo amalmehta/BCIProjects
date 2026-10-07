@@ -1,0 +1,12 @@
+19:07:13 cifar: classifier on original images acc=0.399
+19:10:03   cifar    intensity_uncalibrated   ssim=0.094 lp=0.215 psnr=7.84 acc=0.281 active=230 charge=3264nC
+19:12:52   cifar    intensity                ssim=0.091 lp=0.275 psnr=7.91 acc=0.306 active=256 charge=3762nC
+19:15:47   cifar    edge                     ssim=0.013 lp=0.073 psnr=6.54 acc=0.294 active=256 charge=3388nC
+19:19:06   cifar    salient_edge             ssim=0.014 lp=0.053 psnr=6.40 acc=0.290 active=217 charge=2427nC
+19:23:06   cifar    learned                  ssim=0.137 lp=0.326 psnr=8.69 acc=0.333 active=230 charge=3253nC
+19:39:33   cifar    learned_adapted          ssim=0.151 lp=0.398 psnr=9.09 acc=0.338 active=252 charge=3405nC
+19:44:22   cifar    learned                  ssim=0.134 lp=0.324 psnr=8.65 acc=0.322 active=230 charge=3276nC
+19:59:04   cifar    learned_adapted          ssim=0.147 lp=0.397 psnr=9.04 acc=0.336 active=252 charge=3457nC
+20:03:10   cifar    learned                  ssim=0.135 lp=0.324 psnr=8.65 acc=0.335 active=230 charge=3272nC
+20:21:12   cifar    learned_adapted          ssim=0.150 lp=0.394 psnr=9.04 acc=0.342 active=252 charge=3423nC
+20:28:17   oracle ssim=0.167 psnr=9.03

@@ -1,0 +1,117 @@
+== 1/8 data (Brain-to-Text '25 sessions, block metadata, GPT-2 small)
+== 2/8 word trigram LM + lexicon
+[build_lm] /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/data/speech/lm/built exists (use --force to rebuild)
+== 3/8 training (queue, 2 concurrent jobs)
+== 4/8 decoding + PER/WER
+[eval] wrote /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/speech/results/metrics_systems.json
+== 5/8 calibration study (new day)
+[calibrate] up to date (use --force to rerun)
+== 6/8 electrode-loss robustness
+[robustness] up to date (use --force to rerun)
+== 7/8 latency
+gru_aug_s0 {"frames": 140, "hop_ms": 120.0, "full_forward_ms": 2813.859884001431, "sentence_ms": 17040.0, "real_time_factor": 0.16513262230055348, "per_frame_ms": 34.59420517849919, "algorithmic_lookahead_ms": 60.0, "n_params": 5458729, "trained": true}
+gru_bi_aug_s0 {"frames": 140, "hop_ms": 120.0, "full_forward_ms": 5026.774664002005, "sentence_ms": 17040.0, "real_time_factor": 0.29499851314565756, "per_frame_ms": null, "algorithmic_lookahead_ms": "end of sentence", "latency_after_sentence_end_ms": 5026.774664002005, "n_params": 8421417, "trained": false}
+conformer_aug_s0 {"frames": 140, "hop_ms": 120.0, "full_forward_ms": 1262.5785390118835, "sentence_ms": 17040.0, "real_time_factor": 0.07409498468379598, "per_frame_ms": 9.018418135799168, "per_frame_ms_recompute_window64": 980.3671770059736, "algorithmic_lookahead_ms": 60.0, "n_params": 4993097, "trained": true}
+{
+  "threads": 2,
+  "models": {
+    "gru_aug_s0": {
+      "frames": 140,
+      "hop_ms": 120.0,
+      "full_forward_ms": 2813.859884001431,
+      "sentence_ms": 17040.0,
+      "real_time_factor": 0.16513262230055348,
+      "per_frame_ms": 34.59420517849919,
+      "algorithmic_lookahead_ms": 60.0,
+      "n_params": 5458729,
+      "trained": true
+    },
+    "gru_bi_aug_s0": {
+      "frames": 140,
+      "hop_ms": 120.0,
+      "full_forward_ms": 5026.774664002005,
+      "sentence_ms": 17040.0,
+      "real_time_factor": 0.29499851314565756,
+      "per_frame_ms": null,
+      "algorithmic_lookahead_ms": "end of sentence",
+      "latency_after_sentence_end_ms": 5026.774664002005,
+      "n_params": 8421417,
+      "trained": false
+    },
+    "conformer_aug_s0": {
+      "frames": 140,
+      "hop_ms": 120.0,
+      "full_forward_ms": 1262.5785390118835,
+      "sentence_ms": 17040.0,
+      "real_time_factor": 0.07409498468379598,
+      "per_frame_ms": 9.018418135799168,
+      "per_frame_ms_recompute_window64": 980.3671770059736,
+      "algorithmic_lookahead_ms": 60.0,
+      "n_params": 4993097,
+      "trained": true
+    }
+  },
+  "beam_search_ms_per_sentence": 323.39810669994523,
+  "gpt2_rescore_ms_per_sentence": 3456.1221242334186
+}
+== 8/8 metrics.json, figures, site export
+[report] wrote /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/speech/results/metrics.json, figures and site export
+== paper tables + PDF
+[paper] tables, macros and figures written to /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/speech/paper
+note: Running TeX ...
+warning: body_intro.tex:13: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_intro.tex:21: Underfull \hbox (badness 1609) in paragraph at lines 20--21
+warning: body_method.tex:1: Underfull \hbox (badness 2689) in paragraph at lines 40--1
+warning: body_method.tex:39: Underfull \hbox (badness 3417) in paragraph at lines 35--39
+warning: body_method.tex:39: Underfull \hbox (badness 1590) in paragraph at lines 35--39
+warning: body_results.tex:43: Underfull \hbox (badness 1968) in paragraph at lines 43--43
+warning: body_discussion.tex:5: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_discussion.tex:5: Underfull \vbox (badness 2469) has occurred while \output is active
+warning: body_end.tex:22: Underfull \hbox (badness 1565) in paragraph at lines 20--22
+warning: body_end.tex:22: Underfull \hbox (badness 3108) in paragraph at lines 20--22
+note: Running BibTeX on main.aux ...
+note: Rerunning TeX because bibtex was run ...
+warning: body_intro.tex:13: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_intro.tex:21: Underfull \hbox (badness 1609) in paragraph at lines 20--21
+warning: body_method.tex:1: Underfull \hbox (badness 2689) in paragraph at lines 40--1
+warning: body_method.tex:39: Underfull \hbox (badness 3417) in paragraph at lines 35--39
+warning: body_method.tex:39: Underfull \hbox (badness 1968) in paragraph at lines 35--39
+warning: body_results.tex:43: Underfull \hbox (badness 1968) in paragraph at lines 43--43
+warning: body_results.tex:57: Underfull \hbox (badness 1189) in paragraph at lines 50--57
+warning: body_discussion.tex:5: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_discussion.tex:5: Underfull \vbox (badness 2469) has occurred while \output is active
+warning: body_end.tex:22: Underfull \hbox (badness 1565) in paragraph at lines 20--22
+warning: body_end.tex:22: Underfull \hbox (badness 3108) in paragraph at lines 20--22
+warning: main.bbl:26: Underfull \hbox (badness 1424) in paragraph at lines 18--26
+warning: main.bbl:176: Underfull \vbox (badness 10000) has occurred while \output is active
+note: Rerunning TeX because "main.aux" changed ...
+warning: body_intro.tex:13: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_intro.tex:21: Underfull \hbox (badness 1609) in paragraph at lines 20--21
+warning: body_method.tex:1: Underfull \hbox (badness 2689) in paragraph at lines 40--1
+warning: body_method.tex:39: Underfull \hbox (badness 3417) in paragraph at lines 35--39
+warning: body_results.tex:43: Underfull \hbox (badness 1968) in paragraph at lines 43--43
+warning: body_results.tex:57: Underfull \hbox (badness 1189) in paragraph at lines 50--57
+warning: body_results.tex:57: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_results.tex:63: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_end.tex:22: Underfull \hbox (badness 1565) in paragraph at lines 20--22
+warning: body_end.tex:22: Underfull \hbox (badness 3108) in paragraph at lines 20--22
+warning: main.bbl:26: Underfull \hbox (badness 1424) in paragraph at lines 18--26
+warning: main.bbl:168: Underfull \vbox (badness 10000) has occurred while \output is active
+note: Rerunning TeX because "main.aux" changed ...
+warning: body_intro.tex:13: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_intro.tex:21: Underfull \hbox (badness 1609) in paragraph at lines 20--21
+warning: body_method.tex:1: Underfull \hbox (badness 2689) in paragraph at lines 40--1
+warning: body_method.tex:39: Underfull \hbox (badness 3417) in paragraph at lines 35--39
+warning: body_results.tex:43: Underfull \hbox (badness 1968) in paragraph at lines 43--43
+warning: body_results.tex:57: Underfull \hbox (badness 1189) in paragraph at lines 50--57
+warning: body_results.tex:57: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_results.tex:63: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: body_end.tex:22: Underfull \hbox (badness 1565) in paragraph at lines 20--22
+warning: body_end.tex:22: Underfull \hbox (badness 3108) in paragraph at lines 20--22
+warning: main.bbl:26: Underfull \hbox (badness 1424) in paragraph at lines 18--26
+warning: main.bbl:168: Underfull \vbox (badness 10000) has occurred while \output is active
+warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.
+note: Running xdvipdfmx ...
+note: Writing `main.pdf` (566.42578125 KiB)
+note: Skipped writing 3 intermediate files (use --keep-intermediates to keep them)
+done: see results/ (or the config's results_dir)

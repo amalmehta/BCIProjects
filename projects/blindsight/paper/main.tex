@@ -1,0 +1,43 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{caption}
+\usepackage{microtype}
+\usepackage{textcomp}
+\captionsetup{font=small,labelfont=bf}
+\graphicspath{{../results/figures/}}
+\input{generated.tex}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\dbltopfraction}{0.9}
+\renewcommand{\bottomfraction}{0.6}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\renewcommand{\dblfloatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{dbltopnumber}{3}
+
+\title{Learning Safe, Patient-Adaptive Stimulus Encoders for a High-Channel-Count Cortical Visual Prosthesis in a Differentiable Phosphene Simulator}
+\author{Amal Mehta\thanks{Independent project; not affiliated with or endorsed by Neuralink.}}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\input{sections/abstract.tex}
+\end{abstract}
+
+\input{sections/methods.tex}
+\input{sections/results.tex}
+\input{sections/discussion.tex}
+
+\bibliographystyle{unsrtnat}
+\bibliography{refs}
+\end{document}

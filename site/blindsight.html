@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blindsight Encoder</title>
+<meta name="description" content="A differentiable cortical phosphene simulator and a learned, safety-bounded image-to-stimulation encoder for a 1024-site visual prosthesis.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<style>
+  .bs-demo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 760px) { .bs-demo { grid-template-columns: 1fr; } }
+  .bs-demo .pane { display: flex; flex-direction: column; gap: 6px; }
+  .bs-demo .pane > span { font-size: 12.5px; color: var(--faint); font-family: var(--mono); }
+  .bs-demo canvas { aspect-ratio: 1; height: auto !important; touch-action: none; }
+  #pad { cursor: crosshair; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .gallery img { image-rendering: pixelated; border-radius: 8px; border: 1px solid var(--line); background: #000; }
+  .gallery figcaption { font-size: 12px; }
+</style>
+</head>
+<body>
+<header class="hero wrap" style="--accent: var(--blindsight)">
+  <div class="eyebrow">Blindsight · cortical visual prosthesis</div>
+  <h1>Learning what to stimulate,<br>so a camera becomes sight.</h1>
+  <p class="lede">A camera image has to become safe currents on about a thousand electrodes in visual cortex, tuned to one
+  person's brain. I built a differentiable simulator of the phosphenes stimulation evokes, then trained an encoder
+  through it under hard current and channel limits, with a small per-patient adapter on top.</p>
+  <div class="btns">
+    <a class="btn primary" href="papers/Blindsight.pdf">Read the paper (PDF)</a>
+    <a class="btn" href="#demo">Try the live demo</a>
+    <a class="btn" href="#results">Results</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="stats" id="stats"></div>
+
+  <div class="callout">There is no public human V1 stimulation dataset, so everything here runs in simulation. The
+  simulator is checked against published human data (cortical magnification, brightness, thresholds), and the
+  1024-site "threads" layout is my own idealisation, not a Neuralink specification.</div>
+
+  <h2 id="demo">Live demo: see what the patient would see</h2>
+  <p class="prose" style="color:var(--muted)">Draw a letter, upload a photo or use your webcam. The encoder picks the current for each
+  electrode in your browser, and the same renderer as the paper (ported line for line, with a test against the Python
+  output) draws the phosphenes for a simulated patient. Try killing electrodes to see how each encoder copes.</p>
+  <div class="demo">
+    <div class="controls">
+      <div class="seg" id="src">
+        <button data-v="draw" class="on">Draw</button><button data-v="upload">Upload</button><button data-v="cam">Webcam</button>
+      </div>
+      <label>Encoder <select id="enc">
+        <option value="baseline">Intensity sampling (baseline)</option>
+        <option value="letters">Learned encoder (letters)</option>
+        <option value="cifar">Learned encoder (natural images)</option>
+      </select></label>
+      <label>Failed electrodes <input type="range" id="fail" min="0" max="0.75" step="0.05" value="0"> <span id="failv">0%</span></label>
+      <button class="playbtn" id="clear" type="button">Clear</button>
+      <input type="file" id="file" accept="image/*" hidden>
+    </div>
+    <div class="bs-demo">
+      <div class="pane"><span>Camera / input (64×64 sent to encoder)</span><canvas id="pad" width="384" height="384"></canvas></div>
+      <div class="pane"><span>Electrodes (lit = stimulated, red = failed)</span><canvas id="map" width="384" height="384"></canvas></div>
+      <div class="pane"><span>Simulated percept (12° field of view)</span><canvas id="out" width="384" height="384"></canvas></div>
+    </div>
+    <div class="readout" id="readout">Loading simulator…</div>
+    <video id="video" playsinline muted hidden></video>
+  </div>
+
+  <h2>Gallery: baseline vs learned</h2>
+  <p class="prose" style="color:var(--muted)">Each strip shows the input, then the intensity-sampling baseline percept, then the learned encoder's percept, all for a held-out simulated patient.</p>
+  <div class="gallery" id="gallery"></div>
+
+  <h2 id="results">Results</h2>
+  <p class="prose" style="color:var(--muted)">These are the means over five held-out simulated patients with 1024 sites; learned rows also average over 3 training seeds.
+  Accuracy is how well a CNN trained on each encoder's percepts recognises the images, a stand-in for what a patient could learn to read.
+  Charge is the summed charge per phase over active electrodes.</p>
+  <div class="seg" id="dsTabs" style="margin-top:8px"></div>
+  <div id="mainTable"></div>
+
+  <div class="grid two">
+    <figure><img src="data/blindsight/figures/fig_main_results.png" alt="Bar charts of SSIM and accuracy by encoder and dataset"><figcaption>Fidelity and recognition by encoder.</figcaption></figure>
+    <figure><img src="data/blindsight/figures/fig_dropout_robustness.png" alt="Robustness to electrode failure"><figcaption>Robustness to unannounced electrode failure.</figcaption></figure>
+    <figure><img src="data/blindsight/figures/fig_ablation_layouts.png" alt="Electrode count and layout ablation"><figcaption>Coverage matters more than count: one 96-channel Utah array covers ~2% of the field.</figcaption></figure>
+    <figure><img src="data/blindsight/figures/fig_adaptation_shots.png" alt="Patient adapter gain vs number of images"><figcaption>The per-patient adapter (2N parameters) improves with more unlabeled images.</figcaption></figure>
+  </div>
+
+  <h2>The simulator, checked against human data</h2>
+  <div class="grid two">
+    <figure><img src="data/blindsight/figures/fig_sim_magnification.png" alt="Cortical magnification vs Horton and Hoyt"><figcaption>Cortical magnification within 8.3% of Horton &amp; Hoyt (1991) over 0–10°.</figcaption></figure>
+    <figure><img src="data/blindsight/figures/fig_sim_brightness_threshold.png" alt="Brightness and threshold vs current"><figcaption>Brightness vs current fits Fernández et al. (2021) Fig. 6A with R² = 0.82. The mean threshold (47 µA) is lower than their 66.8 µA, which the paper flags.</figcaption></figure>
+    <figure><img src="data/blindsight/figures/fig_sim_size.png" alt="Phosphene size vs eccentricity"><figcaption>Phosphene size grows with eccentricity and current.</figcaption></figure>
+    <figure><img src="data/blindsight/figures/fig_sim_layouts.png" alt="Electrode layouts in the visual field"><figcaption>Thread-like vs Utah-like layouts mapped into the visual field.</figcaption></figure>
+  </div>
+
+  <h2>How it works</h2>
+  <div class="prose">
+    <h3>1 · A differentiable phosphene simulator</h3>
+    <p>Electrodes sit on a flattened V1 surface and map into the visual field through the wedge-dipole model of cortical
+    magnification. Current spreads through tissue to set each phosphene's size. Tissue activation (with habituation)
+    goes through a sigmoid to set brightness, following van der Grinten et al. (2024), re-implemented from the equations with a
+    closed form for a single pulse train. Each simulated patient has their own thresholds, phosphene-position jitter and dead electrodes.</p>
+    <h3>2 · A position-aware encoder with hard safety limits</h3>
+    <p>A small U-Net produces a retinotopic map that is read out bilinearly at each electrode's phosphene location, so
+    it is not a dense 1024-way output. A safety layer clips current at 100 µA and allows at most 256 electrodes (25%) to be active at once.
+    Training goes end to end through the simulator with a percept-reconstruction loss plus a charge penalty.</p>
+    <h3>3 · A per-patient adapter</h3>
+    <p>Everything that differs between people lives in a per-electrode gain and bias (2N parameters). It is fitted without labels
+    to a patient's calibrated forward model, using 16 to 1024 images. The low dimension also makes it a good fit for
+    human-in-the-loop preference tuning.</p>
+    <h3>Limits</h3>
+    <ul>
+      <li>Simulation only. Real phosphenes vary in shape and colour, and change in ways this model doesn't capture.</li>
+      <li>CPU scale: the percept classifiers train on 6k images for 4 epochs, and ablations use one seed. <code>run_gpu.sh</code> runs the full scale.</li>
+      <li>At 50% unannounced electrode failure on natural images, the learned encoder falls slightly below intensity sampling (SSIM 0.235 vs 0.251).</li>
+      <li>Without the percept loss, a single Utah array, or an unconstrained run started at 100 µA, training collapsed to no stimulation. The paper reports these as findings.</li>
+    </ul>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/ort.min.js"></script>
+<script type="module">
+import { page, loadJSON, renderTable, css } from "./assets/common.js";
+import { PhospheneSim, toGray, paint } from "./assets/phosphene.js";
+page("blindsight");
+
+const D = "data/blindsight/";
+const [el, bl, metrics, gallery] = await Promise.all([
+  loadJSON(D + "electrodes.json"), loadJSON(D + "baseline_encoder.json"),
+  loadJSON(D + "metrics.json"), loadJSON(D + "gallery/index.json"),
+]);
+const sim = new PhospheneSim(el, bl);
+const R = sim.R;
+
+// ---- stats + tables -------------------------------------------------------
+const M = metrics.main, L = metrics.encoder_labels;
+const g = (ds, enc, k) => M[ds].encoders[enc][k];
+const chargeSave = ["mnist", "letters", "cifar"].map(ds => 1 - g(ds, "learned", "charge_nc_per_phase") / g(ds, "intensity", "charge_nc_per_phase"));
+document.getElementById("stats").innerHTML = [
+  [g("mnist", "learned", "ssim").toFixed(3), `MNIST SSIM, learned (intensity ${g("mnist", "intensity", "ssim").toFixed(3)})`],
+  [(100 * g("letters", "learned", "acc")).toFixed(1) + "%", `Letter recognition (intensity ${(100 * g("letters", "intensity", "acc")).toFixed(1)}%)`],
+  [`${Math.round(100 * Math.min(...chargeSave))}–${Math.round(100 * Math.max(...chargeSave))}%`, "less charge than calibrated intensity sampling"],
+  ["1024", "stimulation sites, 256 max active, ≤100 µA"],
+].map(([v, k]) => `<div class="stat"><div class="v" style="color:var(--blindsight)">${v}</div><div class="k">${k}</div></div>`).join("");
+
+const DS = { mnist: "MNIST digits", letters: "EMNIST letters", cifar: "CIFAR-10 (gray)" };
+function showTable(ds) {
+  document.querySelectorAll("#dsTabs button").forEach(b => b.classList.toggle("on", b.dataset.v === ds));
+  const rows = Object.entries(M[ds].encoders).map(([k, v]) => ({ name: L[k] ?? k, ...v }));
+  const pm = key => (v, r) => r.n_seeds > 1 && r[key + "_std"] ? `${v.toFixed(3)} ± ${r[key + "_std"].toFixed(3)}` : v.toFixed(3);
+  renderTable(document.getElementById("mainTable"), rows, [
+    { key: "name", label: "Encoder" },
+    { key: "ssim", label: "SSIM", num: true, fmt: pm("ssim") },
+    { key: "ssim_lowpass", label: "Low-pass SSIM", num: true, fmt: v => v.toFixed(3) },
+    { key: "psnr", label: "PSNR (dB)", num: true, fmt: v => v.toFixed(2) },
+    { key: "acc", label: `Accuracy (ceiling ${(100 * M[ds].image_ceiling_acc).toFixed(1)}%)`, num: true, fmt: v => v == null ? "—" : (100 * v).toFixed(1) + "%" },
+    { key: "active_electrodes", label: "Active", num: true, fmt: v => v.toFixed(0) },
+    { key: "charge_nc_per_phase", label: "Charge (nC)", num: true, fmt: v => v.toFixed(0) },
+  ], { bestKey: "ssim" });
+}
+document.getElementById("dsTabs").innerHTML = Object.entries(DS).map(([k, v]) => `<button data-v="${k}">${v}</button>`).join("");
+document.getElementById("dsTabs").addEventListener("click", e => e.target.dataset.v && showTable(e.target.dataset.v));
+showTable("mnist");
+
+document.getElementById("gallery").innerHTML = gallery.map(x =>
+  `<figure style="margin:0"><img src="${D}gallery/${x.file}" alt="${x.dataset}: ${x.panels.join(", ")}" loading="lazy"><figcaption>${DS[x.dataset] ?? x.dataset}</figcaption></figure>`).join("");
+
+// ---- live demo -------------------------------------------------------------
+const pad = document.getElementById("pad"), map = document.getElementById("map"), out = document.getElementById("out");
+const pctx = pad.getContext("2d");
+const readout = document.getElementById("readout");
+let source = "draw", encoder = "baseline", sessions = {}, busy = false, pending = false;
+
+function resetPad(letter = "A") {
+  pctx.fillStyle = "#000"; pctx.fillRect(0, 0, pad.width, pad.height);
+  if (letter) {
+    pctx.fillStyle = "#fff"; pctx.font = "bold 250px Inter, Helvetica, sans-serif";
+    pctx.textAlign = "center"; pctx.textBaseline = "middle"; pctx.fillText(letter, pad.width / 2, pad.height / 2 + 10);
+  }
+}
+resetPad();
+
+let drawing = false, last = null;
+const pos = e => { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * pad.width / r.width, (e.clientY - r.top) * pad.height / r.height]; };
+pad.addEventListener("pointerdown", e => { if (source !== "draw") return; drawing = true; last = pos(e); pad.setPointerCapture(e.pointerId); });
+pad.addEventListener("pointermove", e => {
+  if (!drawing) return; const p = pos(e);
+  pctx.strokeStyle = "#fff"; pctx.lineWidth = 34; pctx.lineCap = "round";
+  pctx.beginPath(); pctx.moveTo(...last); pctx.lineTo(...p); pctx.stroke(); last = p; schedule();
+});
+pad.addEventListener("pointerup", () => { drawing = false; });
+
+async function getSession(name) {
+  if (!sessions[name]) {
+    if (!window.ort) throw new Error("onnxruntime-web did not load (offline?)");
+    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/";
+    sessions[name] = ort.InferenceSession.create(D + (name === "letters" ? "encoder_letters.onnx" : "encoder.onnx"));
+  }
+  return sessions[name];
+}
+
+function drawMap(amps) {
+  const ctx = map.getContext("2d"), W = map.width, fov = sim.fov;
+  ctx.fillStyle = css("--bg-2") || "#11141b"; ctx.fillRect(0, 0, W, W);
+  const toPx = d => (d + fov / 2) / fov * W;
+  el.electrodes.forEach((e, n) => {
+    const x = toPx(e.x_deg), y = W - toPx(e.y_deg);
+    if (!sim.alive[n]) { ctx.fillStyle = "rgba(255,110,110,.8)"; ctx.fillRect(x - 1.5, y - 1.5, 3, 3); return; }
+    const a = amps[n] / el.safety.max_current_ua;
+    ctx.fillStyle = a > 0 ? `rgba(181,156,255,${0.35 + 0.65 * a})` : "rgba(140,150,170,.25)";
+    ctx.beginPath(); ctx.arc(x, y, a > 0 ? 1.4 + 2.2 * a : 1.1, 0, 7); ctx.fill();
+  });
+}
+
+async function update() {
+  if (busy) { pending = true; return; }
+  busy = true;
+  try {
+    const src = source === "cam" ? document.getElementById("video") : pad;
+    const img = toGray(src, R);
+    let amps, label = "intensity sampling", session = null, loadErr = null;
+    if (encoder !== "baseline") { try { session = await getSession(encoder); } catch (err) { loadErr = err; } }
+    const t0 = performance.now();
+    if (encoder === "baseline") amps = sim.baseline(img);
+    else {
+      try {
+        if (loadErr) throw loadErr;
+        const s = session;
+        const res = await s.run({ image: new ort.Tensor("float32", img, [1, 1, R, R]) });
+        amps = sim.safety(res.amplitude_ua.data);
+        label = "learned encoder (ONNX, in-browser)";
+      } catch (err) {
+        amps = sim.baseline(img); label = `baseline (learned model unavailable: ${err.message})`;
+      }
+    }
+    const t1 = performance.now();
+    paint(out, sim.render(amps, 128), 128);
+    drawMap(amps);
+    const active = amps.filter(a => a > 0).length;
+    const charge = amps.reduce((s, a) => s + a, 0) * el.constants.pulse_width_s * 1e3; // µA·s → nC
+    readout.textContent = `${label} · ${active} active electrodes · ${charge.toFixed(0)} nC/phase · encode ${(t1 - t0).toFixed(0)} ms`;
+  } finally {
+    busy = false;
+    if (pending) { pending = false; schedule(); }
+  }
+}
+let timer = 0;
+function schedule() { clearTimeout(timer); timer = setTimeout(update, 16); }
+
+let camStream = null, camTimer = 0;
+async function setSource(v) {
+  source = v;
+  document.querySelectorAll("#src button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  clearInterval(camTimer);
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  if (v === "upload") document.getElementById("file").click();
+  if (v === "cam") {
+    try {
+      const video = document.getElementById("video");
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+      video.srcObject = camStream; await video.play();
+      if (encoder === "letters") { encoder = "cifar"; document.getElementById("enc").value = "cifar"; }
+      camTimer = setInterval(() => { pctx.drawImage(video, (video.videoWidth - video.videoHeight) / 2, 0, video.videoHeight, video.videoHeight, 0, 0, pad.width, pad.height); schedule(); }, 150);
+    } catch (err) { readout.textContent = "Webcam unavailable: " + err.message; setSource("draw"); }
+  }
+}
+document.getElementById("src").addEventListener("click", e => e.target.dataset.v && setSource(e.target.dataset.v));
+document.getElementById("file").addEventListener("change", e => {
+  const f = e.target.files[0]; if (!f) return;
+  const im = new Image();
+  im.onload = () => {
+    const s = Math.min(im.width, im.height);
+    pctx.drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, 0, 0, pad.width, pad.height);
+    if (encoder === "letters") { encoder = "cifar"; document.getElementById("enc").value = "cifar"; }
+    schedule();
+  };
+  im.src = URL.createObjectURL(f);
+});
+document.getElementById("enc").addEventListener("change", e => { encoder = e.target.value; schedule(); });
+document.getElementById("fail").addEventListener("input", e => {
+  sim.setFailures(+e.target.value);
+  document.getElementById("failv").textContent = Math.round(100 * e.target.value) + "%";
+  schedule();
+});
+document.getElementById("clear").addEventListener("click", () => { setSource("draw"); resetPad(""); schedule(); });
+window.addEventListener("themechange", schedule);
+schedule();
+</script>
+</body>
+</html>

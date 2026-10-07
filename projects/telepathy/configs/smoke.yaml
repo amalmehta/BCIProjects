@@ -1,0 +1,46 @@
+# Tiny configuration that exercises every stage of scripts/run_cpu.sh in minutes:
+#   CFG=configs/smoke.yaml scripts/run_cpu.sh
+# Numbers it produces are meaningless; it only checks that the pipeline runs end to end.
+name: smoke
+data_dir: ../../data/telepathy
+results_dir: results/smoke
+torch_threads: 1
+eval_threads: 1
+n_anchor_days: 5
+lag_candidates: [1]
+seeds: [0]
+wiener: {n_lags: 10, alphas: [10.0]}
+kalman: {smooth_bins: [8], q_scales: [1.0]}
+fa: {q: 10, smooth_bins: 5, n_lags: 5, stable_frac: 0.6}
+train: {steps: 40, batch: 8, window: 64, warmup_bins: 24, lr: 0.002, eval_every: 20}
+gru: {hidden: 32}
+sld: {d: 32, backbone: gru, n_layers: 1}
+ablations:
+  sld_no_aug: {augment: false}
+  sld_no_ssl: {ssl_weight: 0.0}
+  sld_no_adapters: {model: {adapters: false}}
+  sld_transformer: {model: {backbone: transformer, d: 32, n_layers: 1, window: 8}}
+  gru_aug: {kind: gru, augment: true}
+adapt: {steps: 5, batch: 8, fewshot_steps: 5, kl_weight: 0.1, nll_weight: 1.0, adapter_l2: 0.01}
+fewshot_trials: [0, 1, 5]
+ablation_day_stride: 10
+fewshot_day_stride: 10
+fewshot_max_days: 1
+fewshot_seeds: [0]
+stress: {drop_fracs: [0.0, 0.5], shift_fracs: [0.0, 0.5], repeats: 1}
+sim:
+  grid: 10
+  grid_sweep: [6, 35]
+  seconds: 4
+  tune_seconds: 2
+  eval_sessions: 2
+  gains: [1.0]
+  smooths: [0.0]
+  click_holds: [0.1]
+  encoder_hidden: 16
+  encoder_steps: 20
+  noise_grid: [0.0, 0.5]
+  crossday_sessions: 1
+  crossday_days: [indy_20170131_02]
+  refit_seconds: 4
+  ablations: [sld_no_aug]

@@ -1,0 +1,170 @@
+{
+  "settings": {
+    "base_run": "gru_aug_s0",
+    "n_sentences": [
+      10,
+      25,
+      50,
+      100,
+      200
+    ],
+    "repeats": 2,
+    "steps": 40,
+    "batch_size": 16,
+    "lr_day": 0.005,
+    "lr_full": 0.0005
+  },
+  "base_run": "gru_aug_s0",
+  "heldout_session": "t15.2024.03.15",
+  "n_test_sentences": 48,
+  "pool_size": 239,
+  "rows": [
+    {
+      "mode": "reuse",
+      "n_sentences": 0,
+      "repeat": 0,
+      "per": 0.631019387116948,
+      "wer": 0.8176795580110497
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 10,
+      "repeat": 0,
+      "per": 0.6010006253908693,
+      "wer": 0.7762430939226519
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 25,
+      "repeat": 0,
+      "per": 0.5884928080050031,
+      "wer": 0.7513812154696132
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 50,
+      "repeat": 0,
+      "per": 0.5934959349593496,
+      "wer": 0.7513812154696132
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 100,
+      "repeat": 0,
+      "per": 0.5897435897435898,
+      "wer": 0.7486187845303868
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 200,
+      "repeat": 0,
+      "per": 0.5653533458411507,
+      "wer": 0.7209944751381215
+    },
+    {
+      "mode": "full",
+      "n_sentences": 10,
+      "repeat": 0,
+      "per": 0.5953721075672295,
+      "wer": 0.7569060773480663
+    },
+    {
+      "mode": "full",
+      "n_sentences": 25,
+      "repeat": 0,
+      "per": 0.6078799249530957,
+      "wer": 0.7596685082872928
+    },
+    {
+      "mode": "full",
+      "n_sentences": 50,
+      "repeat": 0,
+      "per": 0.6072545340838024,
+      "wer": 0.7624309392265194
+    },
+    {
+      "mode": "full",
+      "n_sentences": 100,
+      "repeat": 0,
+      "per": 0.6066291432145091,
+      "wer": 0.7486187845303868
+    },
+    {
+      "mode": "full",
+      "n_sentences": 200,
+      "repeat": 0,
+      "per": 0.5997498436522827,
+      "wer": 0.7707182320441989
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 10,
+      "repeat": 1,
+      "per": 0.6485303314571608,
+      "wer": 0.8066298342541437
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 25,
+      "repeat": 1,
+      "per": 0.5872420262664165,
+      "wer": 0.7569060773480663
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 50,
+      "repeat": 1,
+      "per": 0.5778611632270169,
+      "wer": 0.7320441988950276
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 100,
+      "repeat": 1,
+      "per": 0.5959974984365228,
+      "wer": 0.7541436464088398
+    },
+    {
+      "mode": "day_layer",
+      "n_sentences": 200,
+      "repeat": 1,
+      "per": 0.5772357723577236,
+      "wer": 0.7375690607734806
+    },
+    {
+      "mode": "full",
+      "n_sentences": 10,
+      "repeat": 1,
+      "per": 0.6285178236397748,
+      "wer": 0.8176795580110497
+    },
+    {
+      "mode": "full",
+      "n_sentences": 25,
+      "repeat": 1,
+      "per": 0.6016260162601627,
+      "wer": 0.7983425414364641
+    },
+    {
+      "mode": "full",
+      "n_sentences": 50,
+      "repeat": 1,
+      "per": 0.5934959349593496,
+      "wer": 0.7734806629834254
+    },
+    {
+      "mode": "full",
+      "n_sentences": 100,
+      "repeat": 1,
+      "per": 0.5947467166979362,
+      "wer": 0.7569060773480663
+    },
+    {
+      "mode": "full",
+      "n_sentences": 200,
+      "repeat": 1,
+      "per": 0.5784865540963102,
+      "wer": 0.7292817679558011
+    }
+  ]
+}

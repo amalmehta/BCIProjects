@@ -1,0 +1,38 @@
+{
+ "name": "Intensity sampling (threshold-calibrated)",
+ "description": "Standard pixelised encoding: blur, sample brightness at each phosphene centre, map linearly from the electrode's threshold current to the safety ceiling.",
+ "input": {
+  "resolution": 64,
+  "field_of_view_deg": 12.0,
+  "preprocess": "Convert to grayscale with luma = 0.299 R + 0.587 G + 0.114 B (values in [0,1]); center-crop to square; resize to resolution x resolution with bilinear interpolation. The full image spans the field of view."
+ },
+ "steps": [
+  "1. Gaussian blur, sigma_px = 1.0, kernel radius = ceil(3 * sigma_px) = 3, weights exp(-t^2 / (2 sigma^2)) normalised to sum 1, applied separably (horizontal then vertical) with reflect padding (index -1 -> 1, R -> R-2).",
+  "2. For electrode n use its nominal centre (nominal_x_deg, nominal_y_deg) from electrodes.json: col = (x + fov/2) / fov * R - 0.5, row = (fov/2 - y) / fov * R - 0.5, each clamped to [0, R - 1 - 1e-4]; bilinear interpolation between floor/floor+1 neighbours (clamped to R-1).",
+  "3. v_n = clamp(sample, 0, 1). If v_n <= cutoff then amp_n = 0, else amp_n = t_n + v_n * (max_current_ua - t_n) with t_n = min(threshold_ua_n, max_current_ua).",
+  "4. amp_n = 0 for electrodes with alive_n == 0 (known dead after calibration).",
+  "5. Safety: clamp to [0, max_current_ua]; keep only the max_active_electrodes largest amplitudes (ties at the k-th value are kept), zero the rest.",
+  "6. Render with the formula in electrodes.json."
+ ],
+ "params": {
+  "blur_sigma_px": 1.0,
+  "cutoff": 0.1,
+  "max_current_ua": 100.0,
+  "max_active_electrodes": 256,
+  "threshold_source": "electrodes[n].threshold_ua"
+ },
+ "test_case": {
+  "image": "img[r][c] = clamp(0.6 * c / (R - 1) + 0.4 * ((c - 40)^2 + (r - 24)^2 < 100 ? 1 : 0), 0, 1), R = 64 (already at model resolution, skip the resize)",
+  "expected_amplitudes_ua": {
+   "0": 86.7578,
+   "4": 82.1381,
+   "6": 91.6931,
+   "8": 80.5561,
+   "10": 82.7009,
+   "12": 86.0475,
+   "1": 0.0
+  },
+  "n_nonzero": 256,
+  "tolerance": 0.001
+ }
+}

@@ -1,0 +1,153 @@
+[17:25:02] lag 0 bins: anchor val R2 0.5383
+[17:25:07] lag 1 bins: anchor val R2 0.5414
+[17:25:13] lag 2 bins: anchor val R2 0.5404
+[17:25:18] lag 3 bins: anchor val R2 0.5353
+[17:25:24] lag 4 bins: anchor val R2 0.5258
+[17:25:29] lag 5 bins: anchor val R2 0.5118
+[17:25:34] lag 6 bins: anchor val R2 0.4928
+[17:27:01] prep done: lag=1 bins; pooled Wiener alpha=100.0; KF smooth=8 q=1.0; user vmax=79.7 d0=15.6
+[17:27:01] stage prep finished in 127s
+[17:27:52] lag 0 bins: anchor val R2 0.5383
+[17:28:00] lag 1 bins: anchor val R2 0.5414
+[17:28:07] lag 2 bins: anchor val R2 0.5404
+[17:28:14] lag 3 bins: anchor val R2 0.5353
+[17:28:21] lag 4 bins: anchor val R2 0.5258
+[17:28:28] lag 5 bins: anchor val R2 0.5118
+[17:28:34] lag 6 bins: anchor val R2 0.4928
+[17:31:21] prep done: lag=1 bins; pooled Wiener alpha=10.0; KF smooth=8 q=1.0; user vmax=79.7 d0=15.6
+[17:31:21] stage prep finished in 218s
+[17:48:39] trained gru_s1 in 1259s, best val R2 0.7898
+[17:51:19] trained sld_s2 in 1419s, best val R2 0.7977
+[17:51:20] trained sld_s0 in 1419s, best val R2 0.8039
+[18:03:36] trained gru_s0 in 737s, best val R2 0.7858
+[18:03:40] trained gru_s2 in 741s, best val R2 0.7781
+[18:03:52] trained sld_s1 in 913s, best val R2 0.7980
+[18:05:23] sim encoder on indy_20160930_02: {'noise_scale': 0.25, 'real_r2': 0.48662103256778483, 'sim_r2_by_scale': {0.0: 0.4399657494860215, 0.25: 0.450720998473982, 0.5: 0.43249242848953073, 0.75: 0.4328888320101353, 1.0: 0.37632657549609594}}
+[18:06:32] fidelity: {'wiener': {'real': 0.48662103256778483, 'sim': 0.4381527757176778}, 'kalman': {'real': 0.176211528382059, 'sim': 0.25925792534364683}, 'gru': {'real': 0.7717734951099404, 'sim': 0.5971014240969872}, 'sld': {'real': 0.7463737042907546, 'sim': 0.717162094408656}}
+[18:08:48] tuned wiener: {'gain': 0.75, 'smooth': 0.6, 'hold': 0.1, 'tune_bps': 2.5412533710305167}
+[18:11:08] tuned kalman: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 0.4419571080053073}
+[18:16:54] tuned gru: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.25, 'tune_bps': 2.2097855400265365}
+[18:19:38] trained sld_no_adapters_s0 in 958s, best val R2 0.8027
+[18:19:38] stage train finished in 3118s
+[18:20:08] trained sld_no_ssl_s0 in 976s, best val R2 0.7856
+[18:20:36] trained sld_no_aug_s0 in 1020s, best val R2 0.8085
+[18:23:07] tuned sld: {'gain': 1.5, 'smooth': 0.6, 'hold': 0.1, 'tune_bps': 1.5468498780185755}
+[18:23:43] WebGrid 10x10 oracle: 4.70 +- 0.17 bps
+[18:24:24] WebGrid 10x10 wiener: 1.27 +- 0.37 bps
+[18:25:04] WebGrid 10x10 kalman: 0.00 +- 0.00 bps
+[18:26:46] WebGrid 10x10 gru: 1.66 +- 0.11 bps
+[18:28:47] WebGrid 10x10 sld: 1.35 +- 0.18 bps
+[18:30:54] grid 6: oracle=3.80, wiener=1.58, kalman=0.43, gru=1.80, sld=1.41
+[18:31:16] trained sld_transformer_s0 in 640s, best val R2 0.7768
+[18:31:16] stage train finished in 3816s
+[18:31:59] trained gru_aug_s0 in 711s, best val R2 0.7951
+[18:31:59] stage train finished in 3859s
+[18:32:44] grid 8: oracle=4.18, wiener=2.04, kalman=0.10, gru=1.94, sld=1.64
+[18:35:22] grid 10: oracle=4.25, wiener=1.77, kalman=0.06, gru=2.04, sld=1.16
+[18:36:12] within-day gru_aug: 0.7973 +- 0.0000
+[18:37:35] grid 15: oracle=5.01, wiener=0.78, kalman=0.00, gru=1.56, sld=0.59
+[18:41:13] grid 20: oracle=5.54, wiener=0.94, kalman=0.00, gru=1.08, sld=0.36
+[18:46:28] grid 35: oracle=5.81, wiener=0.09, kalman=0.09, gru=0.43, sld=0.34
+[18:49:33] stress drop 0.00: wiener_naive=0.487, wiener_rc=0.487, fa_aligned=0.293, gru_naive=0.772, gru_rc=0.772, gru_aug_naive=0.762, gru_aug_rc=0.762, sld_naive=0.746, sld_rc=0.746, sld_aligned=0.711
+[18:50:23] within-day gru: 0.7882 +- 0.0065
+[18:54:34] dwell selection: {'oracle': 4.2, 'wiener': 0.55, 'kalman': 0.0, 'gru': 0.0, 'sld': 0.0}
+[18:57:19] within-day gru_aug: 0.7973 +- 0.0000
+[18:59:55] ReFIT wiener: 1.27 -> 2.43 bps
+[19:04:51] within-day gru: 0.7882 +- 0.0065
+[19:05:19] ReFIT kalman: 0.00 -> 0.06 bps
+[19:07:40] within-day sld_no_adapters: 0.7958 +- 0.0000
+[19:10:08] within-day sld_no_aug: 0.8049 +- 0.0000
+[19:10:45] stress drop 0.00: wiener_naive=0.487, wiener_rc=0.487, fa_aligned=0.293, gru_naive=0.772, gru_rc=0.772, gru_aug_naive=0.762, gru_aug_rc=0.762, sld_naive=0.746, sld_rc=0.746, sld_aligned=0.711
+[19:12:28] within-day sld_no_ssl: 0.7845 +- 0.0000
+[19:16:30] within-day gru_aug: 0.7973 +- 0.0000
+[19:16:53] within-day gru: 0.7882 +- 0.0065
+[19:17:01] within-day sld_no_adapters: 0.7958 +- 0.0000
+[19:17:08] within-day sld_no_aug: 0.8049 +- 0.0000
+[19:17:17] within-day sld_no_ssl: 0.7845 +- 0.0000
+[19:17:25] sim encoder on indy_20160930_02: {'noise_scale': 0.25, 'real_r2': 0.48662103256778483, 'sim_r2_by_scale': {0.0: 0.4399657494860215, 0.25: 0.450720998473982, 0.5: 0.43249242848953073, 0.75: 0.4328888320101353, 1.0: 0.37632657549609594}}
+[19:17:29] fidelity: {'wiener': {'real': 0.48662103256778483, 'sim': 0.4381527757176778}, 'kalman': {'real': 0.17621172976774113, 'sim': 0.25925792534364683}, 'gru': {'real': 0.7717734995039962, 'sim': 0.5971014240969872}, 'sld': {'real': 0.7463716232880302, 'sim': 0.717162094408656}}
+[19:17:40] within-day sld: 0.7913 +- 0.0069
+[19:17:53] within-day sld_transformer: 0.7635 +- 0.0000
+[19:18:48] stress drop 0.00: wiener_naive=0.487, wiener_rc=0.487, fa_aligned=0.293, gru_naive=0.772, gru_rc=0.772, gru_aug_naive=0.762, gru_aug_rc=0.762, sld_naive=0.746, sld_rc=0.746, sld_aligned=0.711
+[19:21:13] tuned wiener: {'gain': 0.75, 'smooth': 0.6, 'hold': 0.1, 'tune_bps': 2.5412533710305167}
+[19:21:25] stress drop 0.10: wiener_naive=0.125, wiener_rc=0.379, fa_aligned=0.305, gru_naive=0.238, gru_rc=0.666, gru_aug_naive=0.673, gru_aug_rc=0.715, sld_naive=0.694, sld_rc=0.727, sld_aligned=0.697
+[19:23:09] cross-day indy_20161005_06 (day 20): wiener_fixed=0.417, wiener_rc=0.446, gru_aug_fixed=0.555, gru_aug_rc=0.725, gru_fixed=0.448, gru_rc=0.687, sld_no_adapters_fixed=0.530, sld_no_adapters_rc=0.715, sld_no_aug_fixed=0.537, sld_no_aug_rc=0.700, sld_no_aug_aligned=0.703, sld_no_ssl_fixed=0.538, sld_no_ssl_rc=0.707, sld_no_ssl_aligned=0.692, sld_fixed=0.521, sld_rc=0.708, sld_aligned=0.683, sld_transformer_fixed=0.563, sld_transformer_rc=0.699, sld_transformer_aligned=0.673
+[19:24:21] stress drop 0.20: wiener_naive=0.395, wiener_rc=0.437, fa_aligned=0.341, gru_naive=0.503, gru_rc=0.694, gru_aug_naive=0.691, gru_aug_rc=0.704, sld_naive=0.685, sld_rc=0.733, sld_aligned=0.705
+[19:25:14] tuned kalman: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 0.4419571080053073}
+[19:26:09] cross-day indy_20161006_02 (day 21): wiener_fixed=0.131, wiener_rc=0.487, gru_aug_fixed=0.579, gru_aug_rc=0.746, gru_fixed=0.499, gru_rc=0.774, sld_no_adapters_fixed=0.572, sld_no_adapters_rc=0.766, sld_no_aug_fixed=0.536, sld_no_aug_rc=0.765, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.603, sld_no_ssl_rc=0.727, sld_no_ssl_aligned=nan, sld_fixed=0.610, sld_rc=0.752, sld_aligned=0.707, sld_transformer_fixed=0.579, sld_transformer_rc=0.732, sld_transformer_aligned=nan
+[19:26:56] few-shot indy_20161005_06 N=0: wiener_prior=0.446, gru_finetune=0.704, sld_fewshot=0.716, sld_align_fewshot=0.697
+[19:27:24] stress drop 0.30: wiener_naive=0.270, wiener_rc=0.381, fa_aligned=0.318, gru_naive=0.291, gru_rc=0.609, gru_aug_naive=0.618, gru_aug_rc=0.672, sld_naive=0.594, sld_rc=0.705, sld_aligned=0.673
+[19:28:33] few-shot indy_20161005_06 N=1: wiener_scratch=-0.054, wiener_prior=0.439, gru_finetune=0.506, sld_fewshot=0.705, sld_align_fewshot=0.708
+[19:29:06] cross-day indy_20161007_02 (day 22): wiener_fixed=0.389, wiener_rc=0.501, gru_aug_fixed=0.481, gru_aug_rc=0.771, gru_fixed=0.391, gru_rc=0.748, sld_no_adapters_fixed=0.580, sld_no_adapters_rc=0.782, sld_no_aug_fixed=0.454, sld_no_aug_rc=0.773, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.544, sld_no_ssl_rc=0.767, sld_no_ssl_aligned=nan, sld_fixed=0.583, sld_rc=0.778, sld_aligned=0.754, sld_transformer_fixed=0.549, sld_transformer_rc=0.772, sld_transformer_aligned=nan
+[19:30:23] stress drop 0.50: wiener_naive=0.145, wiener_rc=0.288, fa_aligned=0.258, gru_naive=0.063, gru_rc=0.393, gru_aug_naive=0.284, gru_aug_rc=0.484, sld_naive=0.295, sld_rc=0.689, sld_aligned=0.644
+[19:30:24] tuned gru: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.25, 'tune_bps': 2.2097855400265365}
+[19:31:13] few-shot indy_20161005_06 N=5: wiener_scratch=0.076, wiener_prior=0.452, gru_finetune=0.650, sld_fewshot=0.706, sld_align_fewshot=0.721
+[19:33:27] stress shift 0.00: wiener_naive=0.487, wiener_rc=0.487, fa_aligned=0.293, gru_naive=0.772, gru_rc=0.772, gru_aug_naive=0.762, gru_aug_rc=0.762, sld_naive=0.746, sld_rc=0.746, sld_aligned=0.711
+[19:34:43] cross-day indy_20161011_03 (day 26): wiener_fixed=0.041, wiener_rc=0.479, gru_aug_fixed=0.693, gru_aug_rc=0.748, gru_fixed=0.461, gru_rc=0.734, sld_no_adapters_fixed=0.678, sld_no_adapters_rc=0.766, sld_no_aug_fixed=0.597, sld_no_aug_rc=0.801, sld_no_aug_aligned=0.666, sld_no_ssl_fixed=0.679, sld_no_ssl_rc=0.756, sld_no_ssl_aligned=0.629, sld_fixed=0.686, sld_rc=0.764, sld_aligned=0.671, sld_transformer_fixed=0.665, sld_transformer_rc=0.740, sld_transformer_aligned=0.589
+[19:36:12] sim ablation sld_no_aug: 1.96 +- 0.09 bps ({'gain': 1.5, 'smooth': 0.6, 'hold': 0.1})
+[19:36:39] tuned sld: {'gain': 1.5, 'smooth': 0.6, 'hold': 0.1, 'tune_bps': 1.5468498780185755}
+[19:36:45] stress shift 0.10: wiener_naive=0.364, wiener_rc=0.416, fa_aligned=0.317, gru_naive=0.591, gru_rc=0.713, gru_aug_naive=0.685, gru_aug_rc=0.727, sld_naive=0.657, sld_rc=0.727, sld_aligned=0.699
+[19:37:57] cross-day indy_20161013_03 (day 28): wiener_fixed=-0.553, wiener_rc=-0.223, gru_aug_fixed=-0.008, gru_aug_rc=-0.069, gru_fixed=-0.011, gru_rc=-0.025, sld_no_adapters_fixed=-0.037, sld_no_adapters_rc=-0.010, sld_no_aug_fixed=0.009, sld_no_aug_rc=-0.041, sld_no_aug_aligned=nan, sld_no_ssl_fixed=-0.000, sld_no_ssl_rc=-0.066, sld_no_ssl_aligned=nan, sld_fixed=0.024, sld_rc=-0.045, sld_aligned=0.267, sld_transformer_fixed=0.007, sld_transformer_rc=-0.093, sld_transformer_aligned=nan
+[19:38:39] WebGrid 10x10 oracle: 4.70 +- 0.17 bps
+[19:40:10] stress shift 0.20: wiener_naive=0.357, wiener_rc=0.409, fa_aligned=0.302, gru_naive=0.470, gru_rc=0.683, gru_aug_naive=0.638, gru_aug_rc=0.711, sld_naive=0.576, sld_rc=0.711, sld_aligned=0.701
+[19:40:27] few-shot indy_20161005_06 N=20: wiener_scratch=0.235, wiener_prior=0.461, gru_finetune=0.724, sld_fewshot=0.717, sld_align_fewshot=0.737
+[19:41:06] WebGrid 10x10 wiener: 1.27 +- 0.37 bps
+[19:41:22] cross-day indy_20161014_04 (day 29): wiener_fixed=-0.224, wiener_rc=0.433, gru_aug_fixed=0.611, gru_aug_rc=0.708, gru_fixed=0.501, gru_rc=0.704, sld_no_adapters_fixed=0.625, sld_no_adapters_rc=0.734, sld_no_aug_fixed=0.547, sld_no_aug_rc=0.767, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.572, sld_no_ssl_rc=0.719, sld_no_ssl_aligned=nan, sld_fixed=0.597, sld_rc=0.731, sld_aligned=0.665, sld_transformer_fixed=0.536, sld_transformer_rc=0.673, sld_transformer_aligned=nan
+[19:43:09] WebGrid 10x10 kalman: 0.00 +- 0.00 bps
+[19:43:35] stress shift 0.30: wiener_naive=-0.128, wiener_rc=0.334, fa_aligned=0.330, gru_naive=0.279, gru_rc=0.555, gru_aug_naive=0.430, gru_aug_rc=0.656, sld_naive=0.366, sld_rc=0.661, sld_aligned=0.678
+[19:45:18] WebGrid 10x10 gru: 1.66 +- 0.11 bps
+[19:45:53] sim ablation sld_no_ssl: 0.99 +- 0.23 bps ({'gain': 1.5, 'smooth': 0.0, 'hold': 0.1})
+[19:46:41] stress shift 0.50: wiener_naive=-0.838, wiener_rc=0.107, fa_aligned=0.307, gru_naive=0.064, gru_rc=0.305, gru_aug_naive=0.178, gru_aug_rc=0.447, sld_naive=0.213, sld_rc=0.549, sld_aligned=0.666
+[19:46:42] stage stress finished in 1823s
+[19:46:49] cross-day indy_20161017_02 (day 32): wiener_fixed=0.196, wiener_rc=0.382, gru_aug_fixed=0.383, gru_aug_rc=0.742, gru_fixed=0.293, gru_rc=0.655, sld_no_adapters_fixed=0.354, sld_no_adapters_rc=0.722, sld_no_aug_fixed=0.413, sld_no_aug_rc=0.679, sld_no_aug_aligned=0.747, sld_no_ssl_fixed=0.313, sld_no_ssl_rc=0.740, sld_no_ssl_aligned=0.749, sld_fixed=0.319, sld_rc=0.728, sld_aligned=0.753, sld_transformer_fixed=0.409, sld_transformer_rc=0.709, sld_transformer_aligned=0.710
+[19:47:13] WebGrid 10x10 sld: 1.35 +- 0.18 bps
+[19:47:18] few-shot indy_20161005_06 N=0: wiener_prior=0.446, gru_finetune=0.704, sld_fewshot=0.716, sld_align_fewshot=0.697
+[19:48:23] few-shot indy_20161005_06 N=1: wiener_scratch=-0.054, wiener_prior=0.439, gru_finetune=0.506, sld_fewshot=0.705, sld_align_fewshot=0.708
+[19:49:11] cross-day indy_20161024_03 (day 39): wiener_fixed=-0.101, wiener_rc=0.366, gru_aug_fixed=0.417, gru_aug_rc=0.685, gru_fixed=0.312, gru_rc=0.569, sld_no_adapters_fixed=0.335, sld_no_adapters_rc=0.718, sld_no_aug_fixed=0.075, sld_no_aug_rc=0.662, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.397, sld_no_ssl_rc=0.717, sld_no_ssl_aligned=nan, sld_fixed=0.402, sld_rc=0.704, sld_aligned=0.738, sld_transformer_fixed=0.372, sld_transformer_rc=0.687, sld_transformer_aligned=nan
+[19:50:16] few-shot indy_20161005_06 N=5: wiener_scratch=0.076, wiener_prior=0.452, gru_finetune=0.650, sld_fewshot=0.706, sld_align_fewshot=0.721
+[19:50:29] grid 6: oracle=3.80, wiener=1.58, kalman=0.43, gru=1.80, sld=1.41
+[19:51:17] cross-day indy_20161025_04 (day 40): wiener_fixed=0.362, wiener_rc=0.493, gru_aug_fixed=0.576, gru_aug_rc=0.791, gru_fixed=0.441, gru_rc=0.744, sld_no_adapters_fixed=0.565, sld_no_adapters_rc=0.795, sld_no_aug_fixed=0.524, sld_no_aug_rc=0.758, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.594, sld_no_ssl_rc=0.770, sld_no_ssl_aligned=nan, sld_fixed=0.546, sld_rc=0.777, sld_aligned=0.753, sld_transformer_fixed=0.486, sld_transformer_rc=0.770, sld_transformer_aligned=nan
+[19:51:57] sim ablation sld_no_adapters: 2.07 +- 0.42 bps ({'gain': 1.5, 'smooth': 0.0, 'hold': 0.1})
+[19:54:02] grid 8: oracle=4.18, wiener=2.04, kalman=0.10, gru=1.94, sld=1.64
+[19:55:13] cross-day indy_20161026_03 (day 41): wiener_fixed=-0.123, wiener_rc=0.414, gru_aug_fixed=0.465, gru_aug_rc=0.749, gru_fixed=0.363, gru_rc=0.683, sld_no_adapters_fixed=0.287, sld_no_adapters_rc=0.753, sld_no_aug_fixed=0.213, sld_no_aug_rc=0.780, sld_no_aug_aligned=0.774, sld_no_ssl_fixed=0.273, sld_no_ssl_rc=0.760, sld_no_ssl_aligned=0.721, sld_fixed=0.368, sld_rc=0.773, sld_aligned=0.749, sld_transformer_fixed=0.363, sld_transformer_rc=0.745, sld_transformer_aligned=0.696
+[19:56:28] few-shot indy_20161005_06 N=20: wiener_scratch=0.235, wiener_prior=0.461, gru_finetune=0.724, sld_fewshot=0.717, sld_align_fewshot=0.737
+[19:57:38] cross-day indy_20161027_03 (day 42): wiener_fixed=-0.266, wiener_rc=0.364, gru_aug_fixed=0.275, gru_aug_rc=0.674, gru_fixed=0.201, gru_rc=0.628, sld_no_adapters_fixed=0.303, sld_no_adapters_rc=0.689, sld_no_aug_fixed=0.349, sld_no_aug_rc=0.718, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.369, sld_no_ssl_rc=0.674, sld_no_ssl_aligned=nan, sld_fixed=0.359, sld_rc=0.692, sld_aligned=0.609, sld_transformer_fixed=0.415, sld_transformer_rc=0.664, sld_transformer_aligned=nan
+[19:57:50] grid 10: oracle=4.25, wiener=1.77, kalman=0.06, gru=2.04, sld=1.16
+[20:00:12] cross-day indy_20161206_02 (day 82): wiener_fixed=-0.201, wiener_rc=0.308, gru_aug_fixed=0.219, gru_aug_rc=0.593, gru_fixed=0.219, gru_rc=0.533, sld_no_adapters_fixed=0.274, sld_no_adapters_rc=0.635, sld_no_aug_fixed=0.054, sld_no_aug_rc=0.551, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.293, sld_no_ssl_rc=0.578, sld_no_ssl_aligned=nan, sld_fixed=0.226, sld_rc=0.607, sld_aligned=0.658, sld_transformer_fixed=0.302, sld_transformer_rc=0.578, sld_transformer_aligned=nan
+[20:01:09] grid 15: oracle=5.01, wiener=0.78, kalman=0.00, gru=1.56, sld=0.59
+[20:01:22] sim ablation sld_transformer: 0.99 +- 0.14 bps ({'gain': 1.5, 'smooth': 0.6, 'hold': 0.1})
+[20:04:45] grid 20: oracle=5.54, wiener=0.94, kalman=0.00, gru=1.37, sld=0.36
+[20:05:32] cross-day indy_20161207_02 (day 83): wiener_fixed=-0.361, wiener_rc=0.439, gru_aug_fixed=0.257, gru_aug_rc=0.729, gru_fixed=0.235, gru_rc=0.668, sld_no_adapters_fixed=0.382, sld_no_adapters_rc=0.725, sld_no_aug_fixed=0.116, sld_no_aug_rc=0.679, sld_no_aug_aligned=0.716, sld_no_ssl_fixed=0.286, sld_no_ssl_rc=0.706, sld_no_ssl_aligned=0.719, sld_fixed=0.328, sld_rc=0.702, sld_aligned=0.717, sld_transformer_fixed=0.483, sld_transformer_rc=0.708, sld_transformer_aligned=0.673
+[20:07:29] sim ablation gru_aug: 1.33 +- 0.21 bps ({'gain': 1.5, 'smooth': 0.0, 'hold': 0.1})
+[20:07:29] stage simabl finished in 2437s
+[20:08:03] grid 35: oracle=5.81, wiener=0.09, kalman=0.09, gru=0.43, sld=0.34
+[20:08:31] cross-day indy_20161212_02 (day 88): wiener_fixed=0.414, wiener_rc=0.464, gru_aug_fixed=0.636, gru_aug_rc=0.737, gru_fixed=0.448, gru_rc=0.661, sld_no_adapters_fixed=0.547, sld_no_adapters_rc=0.728, sld_no_aug_fixed=0.211, sld_no_aug_rc=0.682, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.542, sld_no_ssl_rc=0.725, sld_no_ssl_aligned=nan, sld_fixed=0.481, sld_rc=0.717, sld_aligned=0.743, sld_transformer_fixed=0.499, sld_transformer_rc=0.693, sld_transformer_aligned=nan
+[20:11:50] cross-day indy_20161220_02 (day 96): wiener_fixed=0.298, wiener_rc=0.351, gru_aug_fixed=0.357, gru_aug_rc=0.621, gru_fixed=0.213, gru_rc=0.506, sld_no_adapters_fixed=0.381, sld_no_adapters_rc=0.647, sld_no_aug_fixed=0.046, sld_no_aug_rc=0.591, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.378, sld_no_ssl_rc=0.660, sld_no_ssl_aligned=nan, sld_fixed=0.380, sld_rc=0.636, sld_aligned=0.674, sld_transformer_fixed=0.387, sld_transformer_rc=0.612, sld_transformer_aligned=nan
+[20:18:27] cross-day indy_20170123_02 (day 130): wiener_fixed=0.020, wiener_rc=0.399, gru_aug_fixed=0.412, gru_aug_rc=0.740, gru_fixed=0.324, gru_rc=0.697, sld_no_adapters_fixed=0.337, sld_no_adapters_rc=0.757, sld_no_aug_fixed=0.071, sld_no_aug_rc=0.714, sld_no_aug_aligned=0.778, sld_no_ssl_fixed=0.457, sld_no_ssl_rc=0.727, sld_no_ssl_aligned=0.743, sld_fixed=0.367, sld_rc=0.758, sld_aligned=0.754, sld_transformer_fixed=0.370, sld_transformer_rc=0.731, sld_transformer_aligned=0.720
+[20:18:49] dwell selection: {'oracle': 4.2, 'wiener': 0.55, 'kalman': 0.0, 'gru': 0.0, 'sld': 0.0}
+[20:19:37] few-shot indy_20161005_06 N=50: wiener_scratch=0.349, wiener_prior=0.482, gru_finetune=0.743, sld_fewshot=0.731, sld_align_fewshot=0.738
+[20:19:42] few-shot indy_20161013_03 N=0: wiener_prior=-0.223, gru_finetune=-0.046, sld_fewshot=-0.024, sld_align_fewshot=0.568
+[20:20:47] few-shot indy_20161013_03 N=1: wiener_scratch=-0.128, wiener_prior=-0.236, gru_finetune=0.042, sld_fewshot=0.055, sld_align_fewshot=0.585
+[20:21:48] cross-day indy_20170124_01 (day 131): wiener_fixed=-1.302, wiener_rc=-0.239, gru_aug_fixed=-0.151, gru_aug_rc=-0.060, gru_fixed=-0.044, gru_rc=-0.031, sld_no_adapters_fixed=-0.039, sld_no_adapters_rc=-0.064, sld_no_aug_fixed=-0.020, sld_no_aug_rc=0.013, sld_no_aug_aligned=nan, sld_no_ssl_fixed=-0.114, sld_no_ssl_rc=-0.063, sld_no_ssl_aligned=nan, sld_fixed=-0.015, sld_rc=-0.081, sld_aligned=-0.810, sld_transformer_fixed=-0.056, sld_transformer_rc=-0.095, sld_transformer_aligned=nan
+[20:23:50] few-shot indy_20161013_03 N=5: wiener_scratch=0.089, wiener_prior=-0.046, gru_finetune=0.134, sld_fewshot=0.235, sld_align_fewshot=0.595
+[20:25:15] cross-day indy_20170127_03 (day 134): wiener_fixed=0.243, wiener_rc=0.448, gru_aug_fixed=0.323, gru_aug_rc=0.690, gru_fixed=0.163, gru_rc=0.634, sld_no_adapters_fixed=0.256, sld_no_adapters_rc=0.673, sld_no_aug_fixed=0.081, sld_no_aug_rc=0.637, sld_no_aug_aligned=nan, sld_no_ssl_fixed=0.326, sld_no_ssl_rc=0.665, sld_no_ssl_aligned=nan, sld_fixed=0.200, sld_rc=0.673, sld_aligned=0.687, sld_transformer_fixed=0.305, sld_transformer_rc=0.694, sld_transformer_aligned=nan
+[20:26:08] ReFIT wiener: 1.27 -> 2.43 bps
+[20:29:44] cross-day indy_20170131_02 (day 138): wiener_fixed=-1.858, wiener_rc=0.400, gru_aug_fixed=0.301, gru_aug_rc=0.651, gru_fixed=0.225, gru_rc=0.627, sld_no_adapters_fixed=0.371, sld_no_adapters_rc=0.714, sld_no_aug_fixed=0.266, sld_no_aug_rc=0.659, sld_no_aug_aligned=0.704, sld_no_ssl_fixed=0.439, sld_no_ssl_rc=0.696, sld_no_ssl_aligned=0.661, sld_fixed=0.389, sld_rc=0.704, sld_aligned=0.680, sld_transformer_fixed=0.470, sld_transformer_rc=0.661, sld_transformer_aligned=0.638
+[20:29:52] latency (ms/bin): {'wiener': 0.07326361601008102, 'kalman': 0.1168654439970851, 'fa': 2.339352371986024, 'gru': 0.7581730839447118, 'sld': 1.1091195439803414, 'sld_transformer': 5.541066411999054}
+[20:29:52] stage eval finished in 4413s
+[20:30:26] ReFIT kalman: 0.00 -> 0.06 bps
+[20:31:04] few-shot indy_20161013_03 N=20: wiener_scratch=0.317, wiener_prior=0.185, gru_finetune=0.375, sld_fewshot=0.491, sld_align_fewshot=0.639
+[20:37:00] stage export finished in 155s
+[20:38:47] cross-day sim indy_20161005_06: oracle=5.01, wiener_rc=1.03, kalman_rc=0.00, gru_fixed=0.55, gru_rc=1.36, sld_fixed=0.00, sld_rc=0.37, sld_aligned=1.18
+[20:46:15] cross-day sim indy_20161026_03: oracle=4.79, wiener_rc=1.51, kalman_rc=0.15, gru_fixed=0.00, gru_rc=1.18, sld_fixed=0.00, sld_rc=0.44, sld_aligned=0.96
+[20:50:17] few-shot indy_20161013_03 N=50: wiener_scratch=0.461, wiener_prior=0.341, gru_finetune=0.531, sld_fewshot=0.594, sld_align_fewshot=0.660
+[20:51:10] few-shot indy_20161025_04 N=0: wiener_prior=0.493, gru_finetune=0.747, sld_fewshot=0.779, sld_align_fewshot=0.767
+[20:51:57] few-shot indy_20161025_04 N=1: wiener_scratch=-0.052, wiener_prior=0.492, gru_finetune=0.591, sld_fewshot=0.773, sld_align_fewshot=0.754
+[20:57:42] few-shot indy_20161025_04 N=5: wiener_scratch=0.062, wiener_prior=0.495, gru_finetune=0.731, sld_fewshot=0.767, sld_align_fewshot=0.769
+[21:02:37] cross-day sim indy_20161207_02: oracle=4.75, wiener_rc=1.51, kalman_rc=0.00, gru_fixed=0.00, gru_rc=1.51, sld_fixed=0.00, sld_rc=0.81, sld_aligned=2.03
+[21:10:56] few-shot indy_20161025_04 N=20: wiener_scratch=0.283, wiener_prior=0.511, gru_finetune=0.754, sld_fewshot=0.762, sld_align_fewshot=0.781
+[21:22:36] cross-day sim indy_20170131_02: oracle=5.16, wiener_rc=1.40, kalman_rc=0.07, gru_fixed=0.00, gru_rc=0.52, sld_fixed=0.00, sld_rc=0.00, sld_aligned=0.66
+[21:22:37] stage sim finished in 7578s
+[22:09:11] stage export finished in 1151s
+[22:26:32] few-shot indy_20161025_04 N=50: wiener_scratch=0.417, wiener_prior=0.527, gru_finetune=0.779, sld_fewshot=0.763, sld_align_fewshot=0.779
+[22:33:26] stage export finished in 275s

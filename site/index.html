@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BCI Portfolio</title>
+<meta name="description" content="Four machine-learning projects for brain-computer interfaces: cursor control, speech, an assisted robotic arm, and cortical vision.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="hero wrap">
+  <div class="eyebrow">Machine learning for brain–computer interfaces</div>
+  <h1>Four BCI projects,<br>one for each product problem.</h1>
+  <p class="lede">Decoding cursor movement, speech and arm movement from intracortical recordings, plus encoding camera
+  images into visual-cortex stimulation. Each project has real public neural data where it exists, strong baselines,
+  a closed-loop simulator, an interactive demo and a full paper.</p>
+</header>
+
+<main class="wrap">
+  <section class="grid four" id="cards"></section>
+
+  <h2>How the four fit together</h2>
+  <p class="prose" style="color:var(--muted)">Three projects read from motor cortex and turn intent into action. Blindsight
+  runs the other way: it writes into visual cortex. All four share the same constraints: few labels per person,
+  signals that drift from day to day, tight latency, and a human in the loop.</p>
+  <figure class="card" style="padding:18px">
+    <svg viewBox="0 0 1000 300" width="100%" role="img" aria-label="Diagram: motor cortex signals are decoded into cursor, speech and arm commands; camera images are encoded into visual cortex stimulation" id="flow"></svg>
+  </figure>
+
+  <h2>What every project includes</h2>
+  <div class="grid two">
+    <div class="card"><h3 style="margin-top:0">Literature first</h3><p style="color:var(--muted);margin:0">A reading-notes file per project that sets out the domain knowledge, the field's metrics and which published ideas each project builds on.</p></div>
+    <div class="card"><h3 style="margin-top:0">Honest evaluation</h3><p style="color:var(--muted);margin:0">Standard baselines, held-out days, ablations and seeds. Every number on this site comes from a run in the repo.</p></div>
+    <div class="card"><h3 style="margin-top:0">Closed loop, simulated</h3><p style="color:var(--muted);margin:0">Offline accuracy isn't the product. Simulated users drive each decoder through the real task, so the comparison is on bits/sec, success rate or recognition.</p></div>
+    <div class="card"><h3 style="margin-top:0">Scales to a GPU</h3><p style="color:var(--muted);margin:0">The same code runs at small scale on a laptop CPU and at full scale on a CUDA GPU, using one script per project.</p></div>
+  </div>
+</main>
+
+<script type="module">
+import { page, PROJECTS, loadJSON, css } from "./assets/common.js";
+page("");
+
+const BLURB = {
+  telepathy: "Cursor control by thought: velocity decoding that holds up across days, scored by simulated WebGrid bits per second.",
+  speech: "Attempted speech to text: phoneme decoding with CTC, then a language model that turns phonemes into words.",
+  robotic_arm: "Reach and grasp with a 7-DoF arm: neural decoding plus shared autonomy that infers the goal and assists safely.",
+  blindsight: "Sight through cortical stimulation: a differentiable phosphene simulator and a learned image-to-stimulation encoder.",
+};
+let heads = {};
+try { heads = await loadJSON("data/headlines.json"); } catch {}
+document.getElementById("cards").innerHTML = PROJECTS.map(p => {
+  const h = heads[p.slug];
+  return `<a class="card project" href="${p.page}" style="--c:var(${p.color})">
+    <span class="tag">${p.name}</span>
+    <div class="thumb">${h?.thumb ? `<img src="${h.thumb}" alt="">` : ""}</div>
+    <h3>${h?.title ?? p.name}</h3>
+    <p>${BLURB[p.slug]}</p>
+    ${h ? `<div class="metric"><div class="v">${h.value}</div><div class="k">${h.label}</div></div>` : ""}
+  </a>`;
+}).join("");
+
+function drawFlow() {
+  const svg = document.getElementById("flow");
+  const t = css("--text"), m = css("--muted"), line = css("--line"), panel = css("--bg-2");
+  const box = (x, y, w, h, label, sub, c) => `
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="${panel}" stroke="${c || line}" stroke-width="1.5"/>
+    <text x="${x + w / 2}" y="${y + h / 2 - (sub ? 4 : -5)}" text-anchor="middle" fill="${t}" font-size="15" font-weight="600">${label}</text>
+    ${sub ? `<text x="${x + w / 2}" y="${y + h / 2 + 16}" text-anchor="middle" fill="${m}" font-size="12">${sub}</text>` : ""}`;
+  const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${m}" stroke-width="1.5" marker-end="url(#ah)"/>`;
+  svg.innerHTML = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${m}"/></marker></defs>
+    ${box(20, 40, 170, 70, "Motor cortex", "intracortical spikes")}
+    ${box(250, 40, 170, 70, "Decoder", "per-day alignment")}
+    ${box(500, 10, 220, 50, "Cursor → WebGrid", "", css("--telepathy"))}
+    ${box(500, 70, 220, 50, "Phonemes → text", "", css("--speech"))}
+    ${box(500, 130, 220, 50, "7-DoF arm + autonomy", "", css("--arm"))}
+    ${arrow(190, 75, 248, 75)}${arrow(420, 70, 498, 35)}${arrow(420, 75, 498, 95)}${arrow(420, 85, 498, 152)}
+    <text x="790" y="96" fill="${m}" font-size="13">read</text>
+    ${box(20, 210, 170, 70, "Camera", "scene")}
+    ${box(250, 210, 170, 70, "Encoder", "learned, safety-bound")}
+    ${box(500, 210, 220, 70, "V1 stimulation", "phosphene percept", css("--blindsight"))}
+    ${arrow(190, 245, 248, 245)}${arrow(420, 245, 498, 245)}
+    <text x="790" y="250" fill="${m}" font-size="13">write</text>
+    <line x1="760" y1="30" x2="760" y2="170" stroke="${line}"/><line x1="760" y1="215" x2="760" y2="275" stroke="${line}"/>`;
+}
+drawFlow();
+window.addEventListener("themechange", drawFlow);
+</script>
+</body>
+</html>

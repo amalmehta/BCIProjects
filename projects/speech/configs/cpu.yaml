@@ -1,0 +1,151 @@
+# Small-scale configuration verified on a shared 8-core Intel Mac (2 threads per job).
+# Everything that differs from the published full-scale recipe is marked "CPU:".
+data_dir: ../../data/speech
+results_dir: results
+device: auto
+threads: 2
+
+data:
+  # CPU: 10 of the 45 Brain-to-Text '25 sessions (2,140 train / 426 val sentences),
+  # spread over Aug-Dec 2023, plus one later session held out for calibration.
+  sessions:
+    - t15.2023.08.13
+    - t15.2023.08.18
+    - t15.2023.08.27
+    - t15.2023.09.24
+    - t15.2023.10.01
+    - t15.2023.10.15
+    - t15.2023.11.03
+    - t15.2023.11.26
+    - t15.2023.12.08
+    - t15.2023.12.29
+  heldout_session: t15.2024.03.15
+  bin_factor: 3          # CPU: 60 ms bins (published: 20 ms) -> 300 ms patches every 120 ms (published: 280 ms every 80 ms)
+  dev_fraction: 0.1
+
+train:
+  batch_size: 32
+  max_steps: 480          # CPU: ~40-50 min per run on a shared 8-core Mac (published: 120k steps of batch 64)
+  max_minutes: 75         # safety stop only
+  schedule: steps         # cosine decay over steps (equal optimisation budget for every model)
+  lr: 0.002
+  lr_min_ratio: 0.02
+  warmup_steps: 50
+  weight_decay: 0.01
+  adam_eps: 1.0e-8
+  grad_clip: 10.0
+  eval_every: 50
+  inter_ctc_weight: 0.0
+  amp: true
+
+aug:                     # published Brain-to-Text baseline augmentation
+  white_noise_std: 1.0
+  constant_offset_std: 0.2
+  random_cut: 1          # CPU: 1 bin of 60 ms (published: 3 bins of 20 ms)
+  time_mask_num: 0
+  time_mask_max_bins: 0
+  electrode_dropout: 0.0
+
+models:
+  gru:
+    type: gru
+    hidden: 256          # CPU: published 768
+    layers: 2            # CPU: published 5
+    patch_size: 5
+    patch_stride: 2
+    dropout: 0.4
+    input_dropout: 0.2
+    bidirectional: false
+    per_day: true
+    smooth_std: 0.67     # 40 ms, as the published 2 bins of 20 ms
+  conformer:
+    type: conformer
+    d_model: 144
+    layers: 4
+    heads: 4
+    ff_mult: 4
+    conv_kernel: 15
+    patch_size: 5
+    patch_stride: 2
+    bottleneck: 128
+    dropout: 0.2
+    input_dropout: 0.2
+    causal: true
+    per_day: true
+    inter_ctc_layers: [2]
+    self_condition: true
+    smooth_std: 0.67
+
+lm:
+  min_count: 2
+  max_owt_docs: null
+
+eval:
+  n_tune: 100             # dev sentences used to tune LM weights
+  alphas: [0.3, 0.5, 0.8, 1.2]  # n-gram weight
+  betas: [1.0, 2.0, 3.0, 4.0, 5.0]   # word insertion bonus (coordinate search starts at the middle value)
+  betas_lexicon: [-3.0, -2.0, -1.0, 0.0, 1.0, 2.0]
+  gammas: [0.0, 0.25, 0.5, 0.75, 1.0]  # GPT-2 weight
+  nbest: 10
+  beam: 32
+  workers: 2
+  llm_systems: [conformer_aug_s0, gru_baseline_s0]  # GPT-2 rescoring (CPU time: best single models only)
+
+calibration:
+  base_run: gru_aug_s0
+  n_sentences: [10, 25, 50, 100, 200]
+  repeats: 2              # different random subsets of the new day's sentences
+  steps: 40
+  batch_size: 16
+  lr_day: 0.005
+  lr_full: 0.0005
+
+robustness:
+  runs: [gru_baseline_s0, gru_aug_s0, conformer_aug_s0]
+  drop_fractions: [0.0, 0.1, 0.3, 0.5]
+  n_masks: 1              # random electrode subsets per fraction (CPU time)
+  day_swap_runs: [gru_aug_s0, conformer_aug_s0]
+
+latency:
+  runs: [gru_aug_s0, gru_bi_aug_s0, conformer_aug_s0]
+
+# Augmentations we add on top of the published recipe (time masking + electrode dropout).
+new_aug: &new_aug
+  time_mask_num: 2
+  time_mask_max_bins: 8   # up to 480 ms per mask
+  electrode_dropout: 0.1
+
+runs:
+  gru_baseline:           # published recipe (scaled down)
+    model: gru
+  gru_aug:                # + time masking + electrode dropout
+    model: gru
+    aug: *new_aug
+  conformer_aug:          # proposed: causal Conformer + self-conditioned intermediate CTC + new aug
+    model: conformer
+    aug: *new_aug
+    train: {lr: 0.002, warmup_steps: 100, inter_ctc_weight: 0.3}
+  gru_noaug:              # ablation: no augmentation at all (not scheduled on CPU: time budget; see gpu.yaml)
+    model: gru
+    aug: {white_noise_std: 0.0, constant_offset_std: 0.0, random_cut: 0}
+  gru_noday:              # ablation: one shared input layer instead of per-day layers
+    model: gru
+    aug: *new_aug
+    model_overrides: {per_day: false}
+  gru_bi_aug:             # bidirectional GRU (needs the whole sentence); CPU: timed in latency.py only
+    model: gru
+    aug: *new_aug
+    model_overrides: {bidirectional: true}
+
+
+# Order in which run_cpu.sh trains (run, seed); two jobs run concurrently.
+schedule:
+  - [gru_baseline, 0]
+  - [gru_aug, 0]
+  - [gru_baseline, 1]
+  - [conformer_aug, 0]
+  - [gru_aug, 1]
+
+report:
+  main_system: conformer_aug_s0  # system shown in decodes.json (best WER)
+  posterior_run: conformer_aug_s0 # model whose posteriors drive the live-decoding replay

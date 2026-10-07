@@ -1,0 +1,15 @@
+\begin{tabular}{l c ccc}
+\toprule
+& zero-shot & 10\,s & 20\,s & 45\,s \\
+\midrule
+Wiener filter, global norm. & 0.048 & -- & -- & -- \\
+Wiener filter, held-in + new & 0.110 & 0.115 & 0.116 & 0.122 \\
+Wiener filter, new data only & -- & -0.121 & 0.002 & 0.035 \\
+Kalman filter & 0.039 & -- & -- & -- \\
+GRU, fine-tune all & 0.247{\scriptsize$\pm$0.022} & 0.116{\scriptsize$\pm$0.006} & 0.160{\scriptsize$\pm$0.023} & 0.238{\scriptsize$\pm$0.047} \\
+Causal Transformer, fine-tune all & 0.286 & 0.079 & 0.189 & 0.265 \\
+Multi-day GRU, fine-tune all & 0.107{\scriptsize$\pm$0.078} & 0.217 & 0.198 & 0.222 \\
+Multi-day GRU no aug., new read-in & 0.227 & 0.277 & 0.294 & 0.271 \\
+\textbf{Multi-day GRU, new read-in (ours)} & 0.107{\scriptsize$\pm$0.078} & 0.272{\scriptsize$\pm$0.053} & 0.266{\scriptsize$\pm$0.049} & 0.285{\scriptsize$\pm$0.036} \\
+\bottomrule
+\end{tabular}

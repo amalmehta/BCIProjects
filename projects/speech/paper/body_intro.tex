@@ -1,0 +1,40 @@
+\begin{abstract}
+A speech neuroprosthesis turns the activity of speech motor cortex, recorded while a person with paralysis \emph{attempts} to speak, into text. Clinical systems reach 2.5--24\% word error rate (WER) on large vocabularies, but they rely on GPU-trained recurrent networks, $n$-gram language models of 60--300\,GB, and billion-parameter rescorers. We rebuild the whole pipeline so that it runs end to end on a shared 8-core laptop CPU, using the public Brain-to-Text~'25 recordings (participant T15, 256 electrodes in ventral precentral gyrus; \citealp{card2024accurate}).
+The pipeline has four parts: (i)~a faithful, scaled-down re-implementation of the published GRU--CTC phoneme decoder with day-specific input layers; (ii)~two augmentations motivated by chronic-implant failure modes, time masking and \emph{electrode dropout}; (iii)~a causal Conformer with self-conditioned intermediate CTC; and (iv)~a lexicon-constrained CTC beam search with a Kneser--Ney trigram (\LMVocab{} words) and GPT-2 $n$-best rescoring.
+On 426 held-out sentences, with 480 optimizer steps per model (about 1/500 of the published budget), the causal Conformer reaches \ConfPER\% phoneme error rate and \ConfWERllm\% WER. The best GRU reaches \BaseSZeroPER\% and \BaseSZeroWERng\%.
+The Conformer first spends about 150 steps on a CTC blank plateau. GRU training stalled for one of two seeds, and averaging posteriors with a stalled model ruins ensembles.
+Four product-facing studies follow. Re-fitting only the day-specific input layer on 25 sentences recovers most of the accuracy lost after a 77-day gap, and full fine-tuning is no better. Decoding degrades gracefully as electrodes are lost (+5--9 PER points at 50\% loss). The wrong day's input layer costs 3--14 points. The neural decoder costs only a few milliseconds per 120\,ms frame, while the LM stages dominate latency. Every number is generated from logged runs by the released code (\texttt{run\_cpu.sh}), and \texttt{run\_gpu.sh} reproduces the study at full scale.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Amyotrophic lateral sclerosis (ALS) and brainstem stroke can take away the ability to speak while leaving the cortical motor plan for speech intact. Intracortical brain--computer interfaces (BCIs) now decode \emph{attempted} speech into text at conversational rates. \citet{willett2023speech} reported 23.8\% WER on a 125{,}000-word vocabulary at 62 words per minute. \citet{card2024accurate} reported 97.5\% word accuracy sustained over 8.4 months, with usable output on the first day after 30 minutes of calibration. Neuralink's speech-restoration program received FDA Breakthrough Device designation in 2025, so the engineering questions behind these results matter for a product as well as for research:
+\begin{itemize}\itemsep0pt
+\item \textbf{Accuracy per unit of compute and data.} What does the decoder stack cost, and where do the errors come from: the neural decoder or the language model?
+\item \textbf{Calibration burden.} How many sentences does a new day need, and which parameters should be adapted?
+\item \textbf{Hardware ageing.} How does accuracy degrade as electrodes are lost?
+\item \textbf{Latency.} What does causal (streaming) decoding cost compared with waiting for the end of the sentence?
+\end{itemize}
+
+We answer these questions with a pipeline anyone can rerun from public data on a laptop. Everything runs from \texttt{scripts/run\_cpu.sh}, and every number in this paper is generated from the run logs by \texttt{speech/paper\_tables.py}.
+
+\paragraph{Contributions.}
+\begin{enumerate}\itemsep0pt
+\item An open, tested re-implementation of the published neural-to-text stack: day-specific input layers, patching, GRU--CTC, a lexicon-constrained CTC beam search with a Kneser--Ney trigram (pure NumPy, about 0.1\,GB of RAM), and LLM rescoring. All of it runs on a CPU.
+\item Electrode dropout and time masking, motivated by chronic-implant failure modes, evaluated both as training augmentations and as test-time stressors.
+\item A causal Conformer encoder with self-conditioned intermediate CTC, its causality verified by unit tests. It beats the GRU recipe on PER and WER after an initial blank plateau.
+\item Product-facing studies of new-day calibration, electrode loss and streaming latency, each with its limitations stated.
+\end{enumerate}
+
+\section{Background}
+\label{sec:background}
+
+\paragraph{Signals.} Four 64-electrode Utah arrays in left ventral precentral gyrus (areas 6v, 4 and 55b) record the participant T15, who has ALS with severe dysarthria \citep{card2024accurate}. For each electrode and each 20\,ms bin, the released data contain (a) threshold crossings at $-4.5\times$RMS and (b) spike-band power, 512 features in total. Each feature is z-scored using the preceding trials. Each trial is one cued sentence that the participant attempts to say. The labels are the sentence and its phoneme sequence over 39 ARPAbet phonemes plus a word-boundary token.
+
+\paragraph{Non-stationarity.} Micromotion, impedance changes and the loss or appearance of units shift the feature distribution from day to day. Published decoders address this with an affine \emph{day-specific} input layer per session, and with noise and constant-offset augmentation \citep{sussillo2016robust,willett2021handwriting,willett2023speech}. Unsupervised alternatives exist \citep{fan2023plug}.
+
+\paragraph{Decoding.} There are no audio-aligned phoneme timings, because the participant cannot speak intelligibly. Decoders are therefore trained with connectionist temporal classification \citep[CTC;][]{graves2006ctc}, which marginalizes over monotonic alignments with a blank symbol. The phoneme posteriors are then decoded into words with a pronunciation lexicon and an $n$-gram language model (LM), typically as a weighted finite-state transducer \citep{willett2023speech}, and the resulting $n$-best list is rescored with a large LM (OPT-6.7B in \citealp{card2024accurate}).
+The Brain-to-Text~'24 benchmark \citep{willett2024b2t} found that the largest gains came from ensembling decoders and merging their outputs with fine-tuned LLMs \citep{li2024dcond,benster2024lisa}. Transformer, Mamba and CNN front-ends did not beat the GRU baseline on WER.
+
+\paragraph{Related modalities.} ECoG-based systems decode text, audio and avatar movements at up to 78 words per minute \citep{metzger2023avatar,moses2021anarthria}. Causal voice synthesis from the same T15 arrays \citep{wairagkar2025voice} makes latency a first-class requirement. Inner speech is also decodable from motor cortex, which raises privacy questions \citep{kunz2025inner}.

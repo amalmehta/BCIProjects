@@ -1,0 +1,26 @@
+\section{Limitations}
+\label{sec:limits}
+\begin{itemize}\itemsep0pt
+\item \textbf{Scale.} Each model sees about 15k training samples: 480 steps of batch 32, 1/500 of the published schedule. It is trained on 10 of 45 sessions, with a 2-layer, 256-unit GRU instead of 5$\times$768. Absolute error rates are therefore several times the clinical numbers and should not be compared with them. Relative conclusions may change at scale. In particular, the early-training advantage of the Conformer and the penalty from the new augmentations are both measured in a heavily under-trained regime.
+\item \textbf{Seeds.} The GRUs have 2 seeds and the Conformer 1. Seed 1 stalled for both GRU variants. The Conformer's advantage (9 PER points over the best GRU seed) is large, but it rests on a single run and needs replication (\texttt{gpu.yaml} uses 3 seeds). The electrode-loss curves use one random subset per fraction.
+\item \textbf{Compute contention.} Runs shared an oversubscribed CPU, so wall-clock timings vary by about 2$\times$. Step budgets are identical across runs, so the comparisons are fair in optimization steps but not in wall-clock time.
+\item \textbf{LM.} Our trigram is trained on 5.7M words, orders of magnitude less text than the published 5-gram, and GPT-2 small is 54$\times$ smaller than OPT-6.7B. We include the training cue sentences in the LM corpus, as a deployed system that knows its prompt corpus would. Evaluation sentences are filtered out.
+\item \textbf{One participant.} All data come from T15. Nothing here speaks to transfer across participants or to other array placements, such as Neuralink's thread-based electrodes.
+\item \textbf{Calibration test set.} The new day has only 48 test sentences (about 360 words), so the calibration curve has wide uncertainty.
+\item \textbf{Latency.} Measured on a contended laptop CPU in Python, not on implant-grade hardware. The Conformer's streaming cost assumes a key/value cache, which we did not implement.
+\end{itemize}
+
+\section{Broader impact and safety}
+\label{sec:impact}
+Speech BCIs can give back conversation to people who have lost it. A decoder that \emph{substitutes plausible words} is also a risk: a strong LM can turn a garbled neural signal into a fluent sentence the user never intended. In our results the LM removes more than a third of the word errors relative to lexicon-only decoding, which shows how much of the output the LM itself contributes. Product requirements should therefore include confidence display, easy correction and undo, and a ``not what I meant'' signal. As decoders improve, the 10-best oracle gap (\S\ref{sec:lmres}) suggests that a user-facing $n$-best selection interface could recover additional errors.
+Motor-cortex decoding of \emph{inner} speech \citep{kunz2025inner} raises a privacy concern: decoders should be gated on intent, and posteriors and transcripts should stay on device. Finally, the public dataset comes from a single volunteer. Our filtering of evaluation sentences from the LM corpus and our use of only released, de-identified data follow the data-use terms.
+
+\section{Reproducing at full scale}
+\label{sec:repro}
+Everything above is produced by \texttt{scripts/run\_cpu.sh} with \texttt{configs/cpu.yaml}. The script is resumable and caches each stage. \texttt{CONFIG=configs/smoke.yaml} runs the whole pipeline in about 15 minutes as an integration test.
+\texttt{scripts/run\_gpu.sh} runs the same code with \texttt{configs/gpu.yaml} on a fresh Linux/CUDA machine. It creates a virtual environment from \texttt{requirements-gpu.txt}, downloads all 45 sessions (about 11\,GB as float16), and trains at the published scale: 20\,ms bins, 14-bin patches with stride 4, a 5$\times$768 GRU, an 8-layer 256-dimensional Conformer, 60k steps of batch 64, AMP, and three seeds per model. It then runs the same evaluation, calibration, robustness and latency studies. We expect the next gains to come from diphone targets \citep{li2024dcond}, a larger LM, an LLM rescorer of 1B+ parameters, and LLM-based ensemble merging \citep{willett2024b2t}.
+
+\section{Conclusion}
+We built an open, tested speech-neuroprosthesis pipeline that runs end to end on a laptop CPU, from public intracortical recordings to text. Under a 1/500 optimization budget, a causal Conformer with self-conditioned CTC beat the published GRU recipe on both PER and WER once it escaped an initial blank plateau. The pipeline also gave product-relevant answers. Calibrating only the day layer on about 25 sentences is a safe default for a new day. Decoding degrades gracefully as electrodes are lost. Optimization failures, not average accuracy, are the main reliability risk. And the LM stages, not the neural decoder, dominate latency.
+
+\paragraph{Acknowledgements.} We thank the T15 participant and the BrainGate2 and UC Davis Neuroprosthetics Lab teams for releasing their data and code.

@@ -1,0 +1,14 @@
+An intracortical brain--computer interface (BCI) that drives an assistive robotic arm must turn noisy, drifting estimates of a paralysed person's 7-DoF movement intent into reliable grasps. We study both halves of that problem.
+
+\emph{Offline decoding.} On real human data (FALCON H1: 176 channels, 7 DoF, 13 days), recurrent and attention decoders roughly double the within-session R$^2$ of the clinical Wiener filter: \GRUWithin{} for a GRU versus \WienerWithin{}. Every decoder decays on later days, to R$^2\approx0.1$--0.3. When only 10--45\,s of labelled data are available on a new day, fine-tuning a whole network is worse than not adapting at all. Fitting only a new input layer of a multi-day GRU is the one recalibration that never hurts: it reaches \MSGRUFew{} at \RecalMax\,s, against \GRUFew{} for a fine-tuned GRU and \WienerPooledFew{} for a refit Wiener filter. It matches, but does not beat, the best zero-shot Transformer. We also find that the public H1 calibration files contain the minival test bins, and we show how much this inflates held-in scores.
+
+\emph{Shared autonomy.} We propose \emph{decoder-aware shared autonomy} (DASA). Its goal-inference likelihood is the decoder's own error model, calibrated on the same open-loop block as the decoder and corrected for error autocorrelation. A goal-switching prior and a consistency gate let the user override it.
+
+We evaluate DASA in a \emph{simulated} closed loop. A delayed user model drives a Poisson encoding model fitted to H1. The decoded commands control a safety-filtered Kinova Gen3 7-DoF kinematic model, with the simulator's decoder quality matched to real H1 decoding. At that level:
+\begin{itemize}
+\item Decoder-only control completes \SuccDirect{} of reach-and-grasp episodes; DASA completes \SuccDASA.
+\item DASA is the fastest method (\TimeDASA\,s), never grasps the wrong object, and keeps \ClutSuccDASA{} success with five cluttered objects. MaxEnt-based baselines drop to 0.70--0.78 in clutter.
+\item When the user changes their mind late, DASA hands control back in \YieldDASA\,s (median), against 2.3--3.2\,s for the baselines. Hindsight assistance and distance blending grasp the abandoned object in \ComWrongHindsight{} and \ComWrongDistance{} of episodes.
+\item DASA retains full success while returning half of the command to the user.
+\end{itemize}
+The closed loop is simulated, and we state its limits explicitly.

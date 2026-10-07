@@ -1,0 +1,12 @@
+\section{Discussion: what this means for a speech product}
+\label{sec:discussion}
+
+\paragraph{Optimization robustness is part of the product.} One of the two GRU seeds stalled in both GRU configurations, and the Conformer sat on a blank plateau for about 150 steps. A decoder that is retrained or recalibrated in the field, with no expert watching it, needs automatic acceptance checks: dev PER thresholds, plateau detection with restarts, and gating of ensemble members. Average accuracy is not enough.
+
+\paragraph{Calibrate the input layer, not the decoder.} From 25 calibration sentences upward, updating a single $512\times512$ day layer was at least as good as fine-tuning everything (the two were tied at 10). Its benefit had largely saturated at about 25 sentences. Day-layer calibration is cheap (40 gradient steps on one layer), easy to validate and easy to roll back. That makes it a natural ``start of day'' routine, with unsupervised continual recalibration \citep{fan2023plug} as the next step.
+
+\paragraph{Design for drift and channel loss.} A mismatched day layer costs 3--14 PER points, depending on the time between sessions. Losing half the electrodes costs 5--9 points. Both effects are smaller than we expected, because of feature redundancy across the 256 electrodes. Augmentations that simulate deployment failure modes, such as electrode dropout, flatten the degradation slightly even when they do not improve clean accuracy. Telemetry on channel health, together with time since the last calibration, should trigger recalibration.
+
+\paragraph{The LM can only fix what the decoder nearly got right.} The trigram removes more than a third of the word errors, but at PER around 40\% even the 10-best oracle stays near 48\% WER, and GPT-2 rescoring adds little. LLM-based correction pays off once the neural decoder is good, as in the clinical systems at 10--20\% PER. In our regime, the encoder (Conformer vs.\ GRU: $-$14 WER points) is the bigger lever.
+
+\paragraph{Latency.} Causal neural decoders cost \LatConfFrame--\LatAugFrame\,ms of CPU per 120\,ms frame, well within real time. The current bottlenecks are the Python beam search and the LLM rescorer. Production systems should stream a compiled word-level search and confine LLM rescoring to sentence boundaries or run it asynchronously.

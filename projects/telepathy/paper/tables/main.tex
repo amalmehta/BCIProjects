@@ -1,0 +1,16 @@
+\begin{tabular}{lcccc}
+\toprule
+Decoder & Within-day $R^2$ & \multicolumn{2}{c}{Cross-day $R^2$ (19 days, no labels)} & Sim.\ bits/s \\
+ & & fixed & adapted & (10$\times$10) \\
+\midrule
+Wiener filter (per day) & 0.529 $\pm$ 0.015 & -- & -- & -- \\
+Kalman filter (per day) & 0.294 $\pm$ 0.061 & -- & -- & -- \\
+Wiener filter (5 days) & 0.528 $\pm$ 0.030 & -0.130 $\pm$ 0.575 & 0.353 $\pm$ 0.207 & 1.27 $\pm$ 0.37 \\
+Kalman filter (5 days) & 0.193 $\pm$ 0.021 & -1.894 $\pm$ 2.417 & 0.064 $\pm$ 0.225 & 0.00 $\pm$ 0.00 \\
+FA stabiliser~\cite{degenhart2020stabilization} & 0.412 $\pm$ 0.022 & 0.086 $\pm$ 0.338 & 0.235 $\pm$ 0.212 & -- \\
+GRU & 0.788 $\pm$ 0.006 & 0.299 $\pm$ 0.154 & 0.589 $\pm$ 0.223 & 1.66 $\pm$ 0.11 \\
+SLD (proposed), re-centred & 0.791 $\pm$ 0.007 & 0.388 $\pm$ 0.183 & 0.636 $\pm$ 0.244 & 1.35 $\pm$ 0.18 \\
+SLD (proposed), aligned & -- & -- & 0.603 $\pm$ 0.349 & -- \\
+Oracle (perfect decoder) & -- & -- & -- & 4.70 $\pm$ 0.17 \\
+\bottomrule
+\end{tabular}

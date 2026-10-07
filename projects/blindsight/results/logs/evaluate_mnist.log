@@ -1,0 +1,13 @@
+18:53:40 mnist: classifier on original images acc=0.972
+19:03:50 mnist: classifier on original images acc=0.972
+19:07:10   mnist    intensity_uncalibrated   ssim=0.757 lp=0.849 psnr=17.15 acc=0.962 active=230 charge=3521nC
+19:10:03   mnist    intensity                ssim=0.726 lp=0.840 psnr=16.23 acc=0.968 active=256 charge=3897nC
+19:13:07   mnist    edge                     ssim=0.458 lp=0.560 psnr=11.02 acc=0.938 active=256 charge=3710nC
+19:16:22   mnist    salient_edge             ssim=0.496 lp=0.603 psnr=11.59 acc=0.904 active=254 charge=3131nC
+19:19:59   mnist    learned                  ssim=0.840 lp=0.945 psnr=19.60 acc=0.970 active=230 charge=2970nC
+19:35:54   mnist    learned_adapted          ssim=0.851 lp=0.953 psnr=20.15 acc=0.975 active=244 charge=2937nC
+19:40:55   mnist    learned                  ssim=0.839 lp=0.945 psnr=19.59 acc=0.973 active=230 charge=2958nC
+19:56:27   mnist    learned_adapted          ssim=0.851 lp=0.953 psnr=20.14 acc=0.974 active=244 charge=2922nC
+20:00:17   mnist    learned                  ssim=0.839 lp=0.944 psnr=19.60 acc=0.969 active=230 charge=2947nC
+20:17:30   mnist    learned_adapted          ssim=0.850 lp=0.952 psnr=20.14 acc=0.975 active=244 charge=2921nC
+20:26:01   oracle ssim=0.841 psnr=19.41

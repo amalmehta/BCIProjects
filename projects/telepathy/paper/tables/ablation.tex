@@ -1,0 +1,14 @@
+\begin{tabular}{lccccc}
+\toprule
+Model & Within-day & \multicolumn{2}{c}{Cross-day, 17 days} & \multicolumn{2}{c}{Cross-day, 7-day subset} \\
+ & & fixed & re-centred & aligned & re-centred \\
+\midrule
+SLD (full) & 0.791 $\pm$ 0.007 & 0.433 & 0.718 & 0.715 & 0.734 \\
+w/o input augmentation & 0.805 & 0.300 & 0.701 & 0.727 & 0.716 \\
+w/o masked-spike loss & 0.784 & 0.447 & 0.711 & 0.702 & 0.727 \\
+w/o day adapters & 0.796 & 0.434 & 0.725 & -- & 0.736 \\
+transformer backbone & 0.764 & 0.456 & 0.698 & 0.671 & 0.713 \\
+GRU baseline & 0.788 $\pm$ 0.006 & 0.337 & 0.662 & -- & 0.679 \\
+GRU + augmentation & 0.797 & 0.444 & 0.712 & -- & 0.726 \\
+\bottomrule
+\end{tabular}

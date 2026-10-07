@@ -1,0 +1,16 @@
+20:06:14 [mnist/unconstrained/s0] step=0 loss=0.8651 recon=0.2137 percept=0.6514 charge=0.2717 elapsed_s=1.4
+20:08:21 [mnist/unconstrained/s0] step=100 loss=0.1777 recon=0.09617 percept=0.08152 charge=0.147 elapsed_s=128.4
+20:10:56 [mnist/unconstrained/s0] step=200 loss=0.1818 recon=0.09724 percept=0.08456 charge=0.1361 elapsed_s=283.1
+20:14:29 [mnist/unconstrained/s0] step=300 loss=0.1685 recon=0.09498 percept=0.07349 charge=0.146 elapsed_s=496.5
+20:18:01 [mnist/unconstrained/s0] step=400 loss=0.166 recon=0.09306 percept=0.07293 charge=0.1437 elapsed_s=708.9
+20:20:49 [mnist/unconstrained/s0] step=500 loss=0.1876 recon=0.1111 percept=0.07648 charge=0.1581 elapsed_s=876
+20:23:17 [mnist/unconstrained/s0] step=600 loss=0.1476 recon=0.0737 percept=0.07388 charge=0.1358 elapsed_s=1024
+20:25:42 [mnist/unconstrained/s0] step=700 loss=0.1742 recon=0.09681 percept=0.07744 charge=0.1474 elapsed_s=1169
+20:27:35 [mnist/unconstrained/s0] step=800 loss=0.1729 recon=0.09997 percept=0.07295 charge=0.154 elapsed_s=1282
+20:29:15 [mnist/unconstrained/s0] step=900 loss=0.1609 recon=0.09074 percept=0.07018 charge=0.1557 elapsed_s=1382
+20:30:55 [mnist/unconstrained/s0] step=1000 loss=0.1777 recon=0.1011 percept=0.07664 charge=0.1556 elapsed_s=1483
+20:33:04 [mnist/unconstrained/s0] step=1100 loss=0.1756 recon=0.09805 percept=0.07756 charge=0.1549 elapsed_s=1611
+20:35:05 [mnist/unconstrained/s0] step=1200 loss=0.1692 recon=0.09552 percept=0.07365 charge=0.1536 elapsed_s=1733
+20:37:04 [mnist/unconstrained/s0] step=1300 loss=0.1629 recon=0.09695 percept=0.06595 charge=0.1524 elapsed_s=1852
+20:38:34 [mnist/unconstrained/s0] step=1400 loss=0.1722 recon=0.09946 percept=0.07272 charge=0.1547 elapsed_s=1941
+20:40:14 [mnist/unconstrained/s0] step=1499 loss=0.1479 recon=0.08359 percept=0.06435 charge=0.1455 elapsed_s=2041

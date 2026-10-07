@@ -1,0 +1,56 @@
+# Small configuration verified on a shared 8-core Intel Mac (CPU only).
+threads: 2
+
+decoding:
+  val_frac: 0.15            # last 15% of each held-in calibration block = validation
+  seeds: [0, 1]             # 2 seeds for GRU and multi-day GRU on CPU (gpu.yaml: 5)
+  recal_seconds: [10, 20, 45]   # labelled seconds of the held-out recalibration block
+  wiener:
+    lags: [5, 10, 15]       # number of taps
+    stride: 2               # taps every 2 bins -> up to 600 ms of history (FALCON uses 30 x 20 ms)
+    smooth_tau: 2.0
+    alphas: [0.01, 0.1, 1.0]
+    scratch_alphas: [1.0, 10.0, 100.0]   # chosen by 2-fold CV inside the recalibration data
+  kalman:
+    smooth_taus: [0.0, 3.0]
+    obs_lags: [0, 3]
+    decays: [null, 0.98, 0.95]   # null = least-squares A
+  neural:
+    variants: [gru, ms_gru, ms_gru_noaug, transformer]
+    multi_seed: [gru, ms_gru]
+    d_in: 64
+    hidden: 192             # 1-layer GRU (CPU budget); gpu.yaml uses 2 x 512
+    tf_hidden: 128
+    tf_context: 50
+    tf_layers: 2
+    layers: 1
+    dropout: 0.2
+    window: 64
+    batch: 32
+    steps: 1200
+    lr: 0.002
+    weight_decay: 0.01
+    eval_every: 250
+    patience: 4
+    aug: {gain_sd: 0.1, offset_sd: 0.1, channel_drop: 0.05, noise_sd: 0.0}
+    recal_steps: 80
+    recal_batch: 16
+    recal_lr: 0.003
+    recal_anchor: 0.01
+    ft_lr: 0.0005
+    ablate_ft_all: true
+
+closed_loop:
+  calib_day: "1925-01-20"   # encoding model + simulated calibration use this real session
+  latent_sigma: 0.3         # nuisance-latent scale (log-rate units)
+  gain_exponent: 0.5        # partial speed-gain correction of the decoder output
+  kappas: [0.5, 0.75, 1.0, 1.5, 2.0, 3.0]   # tuning-strength multipliers (decoder-quality dial)
+  methods: [direct, fixed, distance, confidence, hindsight, dasa]
+  n_objects: 3
+  episodes: 60              # per method x kappa (paired scenes across methods)
+  change_of_mind_episodes: 60
+  ablation_episodes: 60
+  tune_episodes: 16
+  max_steps: 1000           # 20 s at 50 Hz
+  workers: 3
+  seed: 1234

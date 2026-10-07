@@ -1,0 +1,10 @@
+[queue] started gru_baseline_s0
+[queue] started gru_aug_s0
+[queue] finished gru_baseline_s0 (exit 0)
+[queue] started gru_baseline_s1
+[queue] finished gru_aug_s0 (exit 0)
+[queue] started conformer_aug_s0
+[queue] finished conformer_aug_s0 (exit 0)
+[queue] started gru_aug_s1
+[queue] finished gru_baseline_s1 (exit 0)
+[queue] started gru_bi_aug_s0

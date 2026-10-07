@@ -1,0 +1,10 @@
+\begin{tabular}{lrrrr}
+\toprule
+Model & params & full fwd & per frame & lookahead \\
+ & (M) & (ms) & (ms) & (ms) \\
+\midrule
+GRU + time mask + electrode dropout & 5.46 & 75 & 2.6 & 60 \\
+Bidirectional GRU + new aug. & 8.42 & 161 & -- & sentence \\
+Causal Conformer + SC-CTC & 4.99 & 46 & 0.3 & 60 \\
+\bottomrule
+\end{tabular}

@@ -1,0 +1,36 @@
+19:03:50 mnist: classifier on original images acc=0.972
+19:03:51 letters: classifier on original images acc=0.808
+19:07:10   mnist    intensity_uncalibrated   ssim=0.757 lp=0.849 psnr=17.15 acc=0.962 active=230 charge=3521nC
+19:07:12   letters  intensity_uncalibrated   ssim=0.640 lp=0.753 psnr=15.20 acc=0.764 active=229 charge=3516nC
+19:07:13 cifar: classifier on original images acc=0.399
+19:10:03   cifar    intensity_uncalibrated   ssim=0.094 lp=0.215 psnr=7.84 acc=0.281 active=230 charge=3264nC
+19:10:03   mnist    intensity                ssim=0.726 lp=0.840 psnr=16.23 acc=0.968 active=256 charge=3897nC
+19:10:05   letters  intensity                ssim=0.625 lp=0.761 psnr=14.78 acc=0.766 active=254 charge=3900nC
+19:12:52   cifar    intensity                ssim=0.091 lp=0.275 psnr=7.91 acc=0.306 active=256 charge=3762nC
+19:13:07   mnist    edge                     ssim=0.458 lp=0.560 psnr=11.02 acc=0.938 active=256 charge=3710nC
+19:13:07   letters  edge                     ssim=0.377 lp=0.476 psnr=10.15 acc=0.697 active=256 charge=3774nC
+19:15:47   cifar    edge                     ssim=0.013 lp=0.073 psnr=6.54 acc=0.294 active=256 charge=3388nC
+19:16:22   mnist    salient_edge             ssim=0.496 lp=0.603 psnr=11.59 acc=0.904 active=254 charge=3131nC
+19:16:27   letters  salient_edge             ssim=0.414 lp=0.516 psnr=10.63 acc=0.646 active=253 charge=3158nC
+19:19:06   cifar    salient_edge             ssim=0.014 lp=0.053 psnr=6.40 acc=0.290 active=217 charge=2427nC
+19:19:59   mnist    learned                  ssim=0.840 lp=0.945 psnr=19.60 acc=0.970 active=230 charge=2970nC
+19:20:05   letters  learned                  ssim=0.736 lp=0.891 psnr=17.40 acc=0.812 active=230 charge=3216nC
+19:23:06   cifar    learned                  ssim=0.137 lp=0.326 psnr=8.69 acc=0.333 active=230 charge=3253nC
+19:35:54   mnist    learned_adapted          ssim=0.851 lp=0.953 psnr=20.15 acc=0.975 active=244 charge=2937nC
+19:36:05   letters  learned_adapted          ssim=0.753 lp=0.911 psnr=17.89 acc=0.804 active=245 charge=3218nC
+19:39:33   cifar    learned_adapted          ssim=0.151 lp=0.398 psnr=9.09 acc=0.338 active=252 charge=3405nC
+19:40:55   mnist    learned                  ssim=0.839 lp=0.945 psnr=19.59 acc=0.973 active=230 charge=2958nC
+19:41:09   letters  learned                  ssim=0.735 lp=0.891 psnr=17.37 acc=0.808 active=230 charge=3220nC
+19:44:22   cifar    learned                  ssim=0.134 lp=0.324 psnr=8.65 acc=0.322 active=230 charge=3276nC
+19:56:27   mnist    learned_adapted          ssim=0.851 lp=0.953 psnr=20.14 acc=0.974 active=244 charge=2922nC
+19:56:36   letters  learned_adapted          ssim=0.752 lp=0.910 psnr=17.87 acc=0.803 active=247 charge=3233nC
+19:59:04   cifar    learned_adapted          ssim=0.147 lp=0.397 psnr=9.04 acc=0.336 active=252 charge=3457nC
+20:00:17   mnist    learned                  ssim=0.839 lp=0.944 psnr=19.60 acc=0.969 active=230 charge=2947nC
+20:00:28   letters  learned                  ssim=0.734 lp=0.890 psnr=17.31 acc=0.808 active=230 charge=3217nC
+20:03:10   cifar    learned                  ssim=0.135 lp=0.324 psnr=8.65 acc=0.335 active=230 charge=3272nC
+20:17:30   mnist    learned_adapted          ssim=0.850 lp=0.952 psnr=20.14 acc=0.975 active=244 charge=2921nC
+20:17:49   letters  learned_adapted          ssim=0.753 lp=0.911 psnr=17.83 acc=0.812 active=245 charge=3232nC
+20:21:12   cifar    learned_adapted          ssim=0.150 lp=0.394 psnr=9.04 acc=0.342 active=252 charge=3423nC
+20:26:01   oracle ssim=0.841 psnr=19.41
+20:26:16   oracle ssim=0.744 psnr=17.29
+20:28:17   oracle ssim=0.167 psnr=9.03

@@ -1,0 +1,5 @@
+[eval] conformer_aug_s0: {"per_greedy": 0.388, "wer_lexicon": 0.8318, "beta_lexicon": -3.0, "alpha": 0.8, "beta": 3.0, "dev_wer_ngram": 0.3974, "wer_ngram": 0.5209, "wer_ngram_ci95": [0.4966632736632736, 0.5441358058963967], "wer_llm": 0.5166, "gamma": 0.75, "wer_llm_ci95": [0.49209516899089195, 0.5398953488372092], "wer_nbest_oracle": 0.4816}
+[eval] gru_aug_s1: {"per_greedy": 0.7013, "wer_lexicon": 0.9625, "beta_lexicon": -3.0, "alpha": 0.5, "beta": 3.0, "dev_wer_ngram": 0.9146, "wer_ngram": 0.9265, "wer_ngram_ci95": [0.9154578139457923, 0.9374338833634719]}
+[eval] gru_baseline_ens: {"per_greedy": 0.7533, "wer_lexicon": 0.9571, "beta_lexicon": 0.0, "alpha": 0.3, "beta": 3.0, "dev_wer_ngram": 0.821, "wer_ngram": 0.8721, "wer_ngram_ci95": [0.857955887742338, 0.8851372666589524]}
+[eval] gru_aug_ens: {"per_greedy": 0.7572, "wer_lexicon": 0.9532, "beta_lexicon": 0.0, "alpha": 0.3, "beta": 3.0, "dev_wer_ngram": 0.821, "wer_ngram": 0.8588, "wer_ngram_ci95": [0.844752635673482, 0.8722862332837429]}
+[eval] wrote /Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/projects/speech/results/metrics_systems.json

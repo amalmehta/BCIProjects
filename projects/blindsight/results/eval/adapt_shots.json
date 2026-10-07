@@ -1,0 +1,149 @@
+{
+ "dataset": "mnist",
+ "rows": [
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "generic",
+   "shots": 0,
+   "ssim": 0.8455520272254944,
+   "psnr": 19.81534767150879
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "adapter",
+   "shots": 16,
+   "ssim": 0.8455427289009094,
+   "psnr": 20.16948699951172
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "full",
+   "shots": 16,
+   "ssim": 0.8454368114471436,
+   "psnr": 19.794313430786133
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "adapter",
+   "shots": 64,
+   "ssim": 0.8526999354362488,
+   "psnr": 20.29798698425293
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "full",
+   "shots": 64,
+   "ssim": 0.8486530780792236,
+   "psnr": 19.8193359375
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "adapter",
+   "shots": 256,
+   "ssim": 0.8555490970611572,
+   "psnr": 20.31471824645996
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "full",
+   "shots": 256,
+   "ssim": 0.8493271470069885,
+   "psnr": 19.836265563964844
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "adapter",
+   "shots": 1024,
+   "ssim": 0.8568342924118042,
+   "psnr": 20.35930824279785
+  },
+  {
+   "seed": 0,
+   "patient": 1000,
+   "mode": "full",
+   "shots": 1024,
+   "ssim": 0.8484328389167786,
+   "psnr": 19.872121810913086
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "generic",
+   "shots": 0,
+   "ssim": 0.841749370098114,
+   "psnr": 19.664844512939453
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "adapter",
+   "shots": 16,
+   "ssim": 0.8449838757514954,
+   "psnr": 20.056215286254883
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "full",
+   "shots": 16,
+   "ssim": 0.8403410315513611,
+   "psnr": 19.674161911010742
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "adapter",
+   "shots": 64,
+   "ssim": 0.8512104153633118,
+   "psnr": 20.12633514404297
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "full",
+   "shots": 64,
+   "ssim": 0.8450188636779785,
+   "psnr": 19.692426681518555
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "adapter",
+   "shots": 256,
+   "ssim": 0.850817859172821,
+   "psnr": 20.17143440246582
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "full",
+   "shots": 256,
+   "ssim": 0.8456709980964661,
+   "psnr": 19.650463104248047
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "adapter",
+   "shots": 1024,
+   "ssim": 0.8531719446182251,
+   "psnr": 20.203279495239258
+  },
+  {
+   "seed": 0,
+   "patient": 1001,
+   "mode": "full",
+   "shots": 1024,
+   "ssim": 0.8455507755279541,
+   "psnr": 19.699935913085938
+  }
+ ]
+}

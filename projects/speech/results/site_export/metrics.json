@@ -1,0 +1,217 @@
+{
+ "dataset": "Brain-to-Text '25 (Card et al., NEJM 2024), participant T15, 10 training sessions",
+ "test_sentences": 426,
+ "note": "Error rates are fractions (0.388 = 38.8%). GRU seed 1 stalled in training for both GRU variants; see per_seed. GPT-2 rescoring was run for the best single models only.",
+ "rows": [
+  {
+   "model": "gru_baseline",
+   "label": "GRU baseline (published recipe)",
+   "system": "single model",
+   "setting": "greedy (PER)",
+   "metric": "PER",
+   "mean": 0.6015668943350743,
+   "std": 0.17880795824781562,
+   "n": 2,
+   "per_seed": {
+    "0": 0.47513057452792284,
+    "1": 0.7280032141422258
+   }
+  },
+  {
+   "model": "gru_baseline",
+   "label": "GRU baseline (published recipe)",
+   "system": "ensemble of 2",
+   "setting": "greedy (PER)",
+   "metric": "PER",
+   "mean": 0.7533145841703496,
+   "std": null,
+   "n": 1
+  },
+  {
+   "model": "gru_baseline",
+   "label": "GRU baseline (published recipe)",
+   "system": "single model",
+   "setting": "lexicon, no LM",
+   "metric": "WER",
+   "mean": 0.9283141210374639,
+   "std": 0.061133151111228946,
+   "n": 2,
+   "per_seed": {
+    "0": 0.8850864553314121,
+    "1": 0.9715417867435159
+   }
+  },
+  {
+   "model": "gru_baseline",
+   "label": "GRU baseline (published recipe)",
+   "system": "ensemble of 2",
+   "setting": "lexicon, no LM",
+   "metric": "WER",
+   "mean": 0.9571325648414986,
+   "std": null,
+   "n": 1
+  },
+  {
+   "model": "gru_baseline",
+   "label": "GRU baseline (published recipe)",
+   "system": "single model",
+   "setting": "lexicon + 3-gram",
+   "metric": "WER",
+   "mean": 0.809978386167147,
+   "std": 0.20454133475965333,
+   "n": 2,
+   "per_seed": {
+    "0": 0.6653458213256485,
+    "1": 0.9546109510086456
+   }
+  },
+  {
+   "model": "gru_baseline",
+   "label": "GRU baseline (published recipe)",
+   "system": "ensemble of 2",
+   "setting": "lexicon + 3-gram",
+   "metric": "WER",
+   "mean": 0.8721181556195965,
+   "std": null,
+   "n": 1
+  },
+  {
+   "model": "gru_baseline",
+   "label": "GRU baseline (published recipe)",
+   "system": "single model",
+   "setting": "3-gram + GPT-2 rescoring",
+   "metric": "WER",
+   "mean": 0.6653458213256485,
+   "std": null,
+   "n": 1,
+   "per_seed": {
+    "0": 0.6653458213256485,
+    "1": null
+   }
+  },
+  {
+   "model": "gru_aug",
+   "label": "GRU + time mask + electrode dropout",
+   "system": "single model",
+   "setting": "greedy (PER)",
+   "metric": "PER",
+   "mean": 0.5968260345520289,
+   "std": 0.147785033175268,
+   "n": 2,
+   "per_seed": {
+    "0": 0.492326235435918,
+    "1": 0.7013258336681398
+   }
+  },
+  {
+   "model": "gru_aug",
+   "label": "GRU + time mask + electrode dropout",
+   "system": "ensemble of 2",
+   "setting": "greedy (PER)",
+   "metric": "PER",
+   "mean": 0.7571715548413017,
+   "std": null,
+   "n": 1
+  },
+  {
+   "model": "gru_aug",
+   "label": "GRU + time mask + electrode dropout",
+   "system": "single model",
+   "setting": "lexicon, no LM",
+   "metric": "WER",
+   "mean": 0.9212896253602305,
+   "std": 0.05833121501863088,
+   "n": 2,
+   "per_seed": {
+    "0": 0.8800432276657061,
+    "1": 0.962536023054755
+   }
+  },
+  {
+   "model": "gru_aug",
+   "label": "GRU + time mask + electrode dropout",
+   "system": "ensemble of 2",
+   "setting": "lexicon, no LM",
+   "metric": "WER",
+   "mean": 0.9531700288184438,
+   "std": null,
+   "n": 1
+  },
+  {
+   "model": "gru_aug",
+   "label": "GRU + time mask + electrode dropout",
+   "system": "single model",
+   "setting": "lexicon + 3-gram",
+   "metric": "WER",
+   "mean": 0.8108789625360231,
+   "std": 0.1635311792225373,
+   "n": 2,
+   "per_seed": {
+    "0": 0.6952449567723343,
+    "1": 0.9265129682997119
+   }
+  },
+  {
+   "model": "gru_aug",
+   "label": "GRU + time mask + electrode dropout",
+   "system": "ensemble of 2",
+   "setting": "lexicon + 3-gram",
+   "metric": "WER",
+   "mean": 0.8587896253602305,
+   "std": null,
+   "n": 1
+  },
+  {
+   "model": "conformer_aug",
+   "label": "Causal Conformer + self-cond. CTC",
+   "system": "single model",
+   "setting": "greedy (PER)",
+   "metric": "PER",
+   "mean": 0.3880273202089192,
+   "std": null,
+   "n": 1,
+   "per_seed": {
+    "0": 0.3880273202089192
+   }
+  },
+  {
+   "model": "conformer_aug",
+   "label": "Causal Conformer + self-cond. CTC",
+   "system": "single model",
+   "setting": "lexicon, no LM",
+   "metric": "WER",
+   "mean": 0.8317723342939481,
+   "std": null,
+   "n": 1,
+   "per_seed": {
+    "0": 0.8317723342939481
+   }
+  },
+  {
+   "model": "conformer_aug",
+   "label": "Causal Conformer + self-cond. CTC",
+   "system": "single model",
+   "setting": "lexicon + 3-gram",
+   "metric": "WER",
+   "mean": 0.520893371757925,
+   "std": null,
+   "n": 1,
+   "per_seed": {
+    "0": 0.520893371757925
+   }
+  },
+  {
+   "model": "conformer_aug",
+   "label": "Causal Conformer + self-cond. CTC",
+   "system": "single model",
+   "setting": "3-gram + GPT-2 rescoring",
+   "metric": "WER",
+   "mean": 0.5165706051873199,
+   "std": null,
+   "n": 1,
+   "per_seed": {
+    "0": 0.5165706051873199
+   }
+  }
+ ]
+}

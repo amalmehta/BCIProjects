@@ -1,0 +1,14 @@
+{"run": "gru_baseline_s0", "drop": 0.0, "per": 0.4752109280835677}
+{"run": "gru_baseline_s0", "drop": 0.1, "per": 0.4805946163117718}
+{"run": "gru_baseline_s0", "drop": 0.3, "per": 0.5102450783447168}
+{"run": "gru_baseline_s0", "drop": 0.5, "per": 0.5358778625954198}
+{"run": "gru_aug_s0", "drop": 0.0, "per": 0.49216552832462834}
+{"run": "gru_aug_s0", "drop": 0.1, "per": 0.4995580554439534}
+{"run": "gru_aug_s0", "drop": 0.3, "per": 0.519485737243873}
+{"run": "gru_aug_s0", "drop": 0.5, "per": 0.5378867014865408}
+{"run": "gru_aug_s0", "day_swap": {"own day": 0.49216552832462834, "previous session's layer": 0.5207713941341905, "most distant session's layer": 0.5638408999598232, "identity (no day layer)": 0.5812776215347529}}
+{"run": "conformer_aug_s0", "drop": 0.0, "per": 0.3879469666532744}
+{"run": "conformer_aug_s0", "drop": 0.1, "per": 0.3979108075532342}
+{"run": "conformer_aug_s0", "drop": 0.3, "per": 0.43415026114905586}
+{"run": "conformer_aug_s0", "drop": 0.5, "per": 0.4773001205303335}
+{"run": "conformer_aug_s0", "day_swap": {"own day": 0.3879469666532744, "previous session's layer": 0.447408597830454, "most distant session's layer": 0.5300120530333468, "identity (no day layer)": 0.48501406187223783}}

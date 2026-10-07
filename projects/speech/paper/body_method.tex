@@ -1,0 +1,60 @@
+\section{Method}
+\label{sec:method}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{posteriors_example.png}
+\caption{CTC phoneme posteriors of the causal Conformer (seed 0) on a held-out test sentence. Rows are the 39 phonemes plus the word boundary ``$|$''. The orange trace is the blank probability (scaled). The decoder emits sparse, peaky phoneme spikes separated by long blank stretches, typical of CTC. The beam search and LM turn these spikes into words.}
+\label{fig:posteriors}
+\end{figure*}
+
+\subsection{Problem setup}
+A trial gives features $\mathbf{x}_{1:T}\in\mathbb{R}^{T\times 512}$ recorded on day $d$, and a label sequence $\mathbf{y}=(y_1,\dots,y_L)$ over $\mathcal{V}=\{39\text{ phonemes},|\}$. A neural decoder $f_\theta$ outputs frame-level posteriors $p_\theta(k\mid\mathbf{x},t)$ over $\mathcal{V}\cup\{\varnothing\}$ (41 classes) at a reduced frame rate $T'$. Training minimizes the CTC loss
+\begin{equation}
+\mathcal{L}_{\text{CTC}}=-\frac{1}{L}\log\!\!\sum_{\pi\in\mathcal{B}^{-1}(\mathbf{y})}\prod_{t=1}^{T'}p_\theta(\pi_t\mid\mathbf{x},t),
+\end{equation}
+where $\mathcal{B}$ collapses repeats and then removes blanks.
+
+\subsection{Shared front end}
+\textbf{Day-specific input layers.} Each recording day $d$ has its own affine map, initialized to the identity, followed by a softsign:
+$\tilde{\mathbf{x}}_t=\operatorname{softsign}(\mathbf{W}_d\mathbf{x}_t+\mathbf{b}_d)$, with $\mathbf{W}_d\in\mathbb{R}^{512\times512}$ and no weight decay on $\mathbf{W}_d,\mathbf{b}_d$. The ablation \emph{no day layers} shares a single $(\mathbf{W},\mathbf{b})$ across all days.
+\textbf{Smoothing and patching.} Features are smoothed with a Gaussian kernel ($\sigma=40$\,ms, matching the published 2 bins of 20\,ms). Windows of $P$ consecutive bins are then concatenated with stride $S$ (``patching''), which sets the output frame rate.
+On CPU we average every three consecutive 20\,ms bins into one 60\,ms bin and use $P{=}5$, $S{=}2$: 300\,ms windows every 120\,ms, against 280\,ms every 80\,ms in the published configuration. T15 speaks at about 32 words per minute, and our trials average 1.5 label tokens per second. At 120\,ms per frame that is about 5.5 frames per label, which leaves room for CTC blanks.
+
+\subsection{Baseline: GRU--CTC}
+The patched sequence feeds a unidirectional GRU (2 layers, 256 units; published: 5$\times$768) with dropout 0.4 and a linear read-out to 41 classes. GRU input-to-hidden weights use Xavier initialization and hidden-to-hidden weights use orthogonal initialization, as in the released code.
+\textbf{Published augmentation} adds white noise ($\sigma{=}1.0$) and a per-trial, per-feature constant offset ($\sigma{=}0.2$), and randomly cuts up to one leading bin.
+
+\subsection{New augmentations: time masking and electrode dropout}
+Chronic arrays lose channels over months, and attempted speech is interrupted by pauses and breaths. We add two augmentations, both inspired by SpecAugment \citep{park2019specaugment}.
+\emph{Time masking} zeroes up to two spans of up to 480\,ms each.
+\emph{Electrode dropout} zeroes \emph{both} features of each electrode independently with probability $q=0.1$, for the whole trial. This simulates an electrode that has failed or gone silent, rather than i.i.d.\ feature noise.
+Section~\ref{sec:robust} also uses the same operation as a test-time stressor.
+
+\subsection{Proposed encoder: causal Conformer with self-conditioned CTC}
+After the day layers, a per-bin linear bottleneck (512$\to$128) and a patch embedding (Linear+LayerNorm) produce $d{=}144$-dimensional frames. Four Conformer blocks follow \citep{gulati2020conformer}, each a macaron feed-forward $\to$ multi-head self-attention $\to$ convolution module $\to$ feed-forward, with a final LayerNorm. For streaming, attention is causally masked and the depthwise convolution (kernel 15) is left-padded. We use LayerNorm rather than BatchNorm inside the convolution module, so that inference does not depend on batch statistics.
+We use no absolute positional encoding: causal masking and the convolutions carry order information. In pilot runs, an unscaled sinusoidal encoding swamped the small patch embeddings.
+After block 2 we compute an \emph{intermediate CTC} loss with the shared output head \citep{lee2021intermediate}. Its posteriors are projected back into the residual stream, $\mathbf{h}\leftarrow\mathbf{h}+\mathbf{W}_c\,\mathrm{softmax}(\cdot)$, which is \emph{self-conditioned CTC} \citep{nozaki2021selfcond}. The total loss is $0.7\,\mathcal{L}_{\text{CTC}}+0.3\,\mathcal{L}_{\text{CTC}}^{\text{inter}}$.
+A unit test checks causality: perturbing inputs after time $t$ leaves all outputs whose receptive field ends before $t$ unchanged, apart from the 60\,ms half-width of the smoothing kernel.
+
+\subsection{Ensembling}
+Following the Brain-to-Text~'24 lessons, we ensemble models of the same architecture trained with different seeds by averaging their per-frame posteriors, $\bar p(k\mid t)=\tfrac1M\sum_m p_{\theta_m}(k\mid t)$, and then decode $\bar p$.
+
+\subsection{Phoneme-to-word decoding}
+\textbf{Lexicon and LM.} The vocabulary is every word with a CMUdict pronunciation \citep{cmudict} that occurs at least twice in the LM corpus or appears in a training cue sentence: \LMVocab{} words, with \LMOOV\% out-of-vocabulary tokens on the evaluation sentences.
+The corpus is OpenWebText-10k \citep{gokaslan2019openwebtext}, DailyDialog \citep{li2017dailydialog} and the cue sentences of the training trials, \LMWords\,M words in total. Any corpus sentence that matches a dev or test sentence after normalization is removed (\LMRemoved{} sentences).
+We fit an interpolated Kneser--Ney trigram \citep{kneser1995improved,chen1999empirical} with discount $D{=}0.75$ (\LMTrigrams\,M trigrams). It is stored as sorted 64-bit keys and queried by binary search.
+
+\textbf{Beam search.} Hypotheses walk a phoneme trie of the vocabulary under the CTC prefix recursion \citep{hannun2014firstpass}. When the decoder emits ``$|$'' at a trie node where one or more words end, the hypothesis commits each such word (homophones branch). Each committed word $w$ adds
+\begin{equation}
+\alpha\log P_{\text{KN}}(w\mid w_{-2},w_{-1})+\beta
+\end{equation}
+to the hypothesis score. A hypothesis that ends inside a word is completed or dropped, and the score for the end-of-sentence token is then added. We use beam 32. Frames with blank probability above 0.999 are skipped, and tokens with log-probability below $-8$ are pruned.
+\emph{No-LM} decoding uses the same lexicon-constrained search with $\alpha{=}0$.
+
+\textbf{LLM rescoring.} The 10-best list is rescored with
+\begin{equation}
+s=\log p_{\text{CTC}}+\alpha\log P_{\text{KN}}+\beta|w|+\gamma\log P_{\text{GPT-2}},
+\end{equation}
+where GPT-2 small (124M parameters; \citealp{radford2019gpt2}) stands in for the 6.7B-parameter OPT used clinically.
+The weights $\alpha,\beta$ are chosen by coordinate search on 100 dev sentences, and $\gamma$ is then chosen on the same sentences. The test set is never used for any choice.

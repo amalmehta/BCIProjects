@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assisted Robotic Arm</title>
+<meta name="description" content="Multi-day 7-DoF intracortical decoding on FALCON H1 and decoder-aware shared autonomy for reach-and-grasp with a simulated 7-DoF arm.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<style>
+  .arm-demo { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; }
+  .arm-demo > * { min-width: 0; }
+  @media (max-width: 860px) { .arm-demo { grid-template-columns: 1fr; } }
+  #scene { width: 100%; aspect-ratio: 4/3; border-radius: 10px; overflow: hidden; background: var(--bg-2); }
+  .post-row { display: grid; grid-template-columns: 96px 1fr 44px; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); margin: 6px 0; }
+  .post-row .bar { height: 10px; background: var(--bg-2); border-radius: 5px; overflow: hidden; border: 1px solid var(--line); }
+  .post-row .bar div { height: 100%; }
+  .post-row .goal { color: var(--text); font-weight: 600; }
+  .meter-k { font-size: 12.5px; color: var(--faint); margin-top: 16px; }
+  .scrub { width: 100%; margin-top: 10px; }
+  .outcome { font: 600 13px var(--mono); }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
+</head>
+<body>
+<header class="hero wrap" style="--accent: var(--arm)">
+  <div class="eyebrow">Assisted Robotic Arm · reach and grasp</div>
+  <h1>A decoder that's often wrong,<br>and an arm that helps anyway.</h1>
+  <p class="lede">7-DoF decoding from motor cortex is noisy: the real multi-day Wiener filter here reaches R² 0.32. I decoded
+  real human recordings (FALCON H1), then built a simulated 7-DoF Kinova arm whose shared autonomy infers which object
+  you want. It accounts for how the decoder's errors behave, assists only when confident, and gives control back the moment you change your mind.</p>
+  <div class="btns">
+    <a class="btn primary" href="papers/Assisted%20Robotic%20Arm.pdf">Read the paper (PDF)</a>
+    <a class="btn" href="#demo">Watch episodes in 3D</a>
+    <a class="btn" href="#results">Results</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="stats" id="stats"></div>
+  <div class="callout">The offline decoding is on real human recordings (FALCON H1, DANDI 000954; 176 channels, 7 DoF, 13 days).
+  The closed loop is simulated: a model user whose intent is decoded through a noise model matched to that real decoder.
+  No human was in the loop.</div>
+
+  <h2 id="demo">Episodes, in 3D</h2>
+  <p class="prose" style="color:var(--muted)">Pick an episode and drag to orbit. The bars on the right are the arm's belief about which block you want,
+  and the meter shows how much it is steering (the autonomy weight α). In the change-of-mind episodes the user switches targets halfway through;
+  watch how fast each method yields.</p>
+  <div class="demo">
+    <div class="controls">
+      <label>Episode <select id="epSel"></select></label>
+      <button class="playbtn" id="play" type="button">Pause</button>
+      <label>Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+    </div>
+    <div class="arm-demo">
+      <div><div id="scene"></div><input class="scrub" type="range" id="scrub" min="0" max="1" step="1" value="0" aria-label="Episode time"></div>
+      <div>
+        <div class="outcome" id="outcome"></div>
+        <div class="meter-k">Goal belief</div>
+        <div id="post"></div>
+        <div class="meter-k">Autonomy weight α (0 = all user, 1 = all robot)</div>
+        <div class="post-row"><span>α</span><div class="bar"><div id="alphaBar" style="background:var(--arm)"></div></div><span id="alphaV"></span></div>
+        <div class="meter-k">Gripper opening</div>
+        <div class="post-row"><span>open</span><div class="bar"><div id="gripBar" style="background:var(--muted)"></div></div><span id="gripV"></span></div>
+        <div class="readout" id="epInfo"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="results">Results</h2>
+  <h3>Shared autonomy (simulated, 60 paired episodes per cell)</h3>
+  <div class="seg" id="scTabs"></div>
+  <div id="saTable"></div>
+  <p class="prose" style="color:var(--faint);font-size:13.5px">In paired McNemar tests, DASA beats the fixed, confidence and hindsight methods on clutter (p ≤ 0.0002) and beats distance
+  blending (p = 4.7e-10) and hindsight assistance (p = 3.8e-6) on change of mind. Distance blending ties DASA on the standard task.</p>
+
+  <h3>Offline 7-DoF decoding on FALCON H1 (real data)</h3>
+  <div>
+    <div><div id="decTable"></div><p style="color:var(--faint);font-size:13px">Within session: FALCON's variance-weighted R² on the public minival split.</p></div>
+    <div><div id="xdTable"></div><p style="color:var(--faint);font-size:13px">Across days: mean R² on 7 later days (6–20 days after training), by recalibration budget. This is our own split, because FALCON's held-out split is private.</p></div>
+  </div>
+  <div class="callout" style="border-color:var(--arm)">Two findings worth stating plainly. First, each public held-in calibration file
+  starts with exactly its minival bins. Left in, that leak inflates GRU R² to 0.80. They are stripped here, and a unit test enforces it.
+  Second, fine-tuning a whole network on seconds of new-day data is worse than not adapting at all. Re-fitting only the read-in layer is the one recalibration that never hurts.</div>
+
+  <div class="grid two">
+    <figure><img src="data/robotic_arm/success_vs_r2.png" alt="Task success vs decoder quality"><figcaption>Success vs decoder quality. Assistance matters most when the decoder is weakest.</figcaption></figure>
+    <figure><img src="data/robotic_arm/change_of_mind.png" alt="Change of mind yield latency"><figcaption>Change of mind: DASA yields in 0.73 s; the next best takes 2.26 s.</figcaption></figure>
+    <figure><img src="data/robotic_arm/authority_tradeoff.png" alt="User authority vs success"><figcaption>Authority trade-off: DASA keeps 100% success while giving the user about half of the control.</figcaption></figure>
+    <figure><img src="data/robotic_arm/ablations.png" alt="DASA ablations"><figcaption>Ablations at the weakest decoder. The autocorrelation correction matters most.</figcaption></figure>
+    <figure><img src="data/robotic_arm/decoding_cross_session.png" alt="Cross-day decoding with recalibration budgets"><figcaption>Cross-day decoding vs recalibration budget.</figcaption></figure>
+    <figure><img src="data/robotic_arm/goal_inference.png" alt="Goal inference accuracy over time"><figcaption>Goal-inference accuracy over the course of a reach.</figcaption></figure>
+  </div>
+
+  <h2>How it works</h2>
+  <div class="prose">
+    <h3>Decoding</h3>
+    <p>Spikes from 176 channels go to Wiener, Kalman, GRU, causal Transformer and multi-day GRU decoders. The multi-day GRU has a per-day read-in layer and
+    augmentation, so a new day needs only the read-in re-fitted, from as little as 10–45 s of data.</p>
+    <h3>Decoder-aware shared autonomy (DASA)</h3>
+    <p>Goal inference is Bayesian over the objects on the table. Unlike standard policy blending, the likelihood uses a <i>calibrated model of
+    the decoder's own errors</i>, including their autocorrelation: consecutive decoded velocities are not independent evidence, and treating them
+    as independent makes the posterior overconfident. A switching prior lets belief move when the user changes their mind, and a confidence gate
+    sets the autonomy weight α. A safety filter enforces joint limits, workspace bounds, velocity caps and table clearance. Across 7,968 episodes it never had to block a table collision.</p>
+    <h3>Limits</h3>
+    <ul>
+      <li>Simulated user and simulated arm (kinematic Kinova Gen3, DH parameters from the user guide), with no contact physics.</li>
+      <li>Small CPU models with 1–2 seeds. <code>run_gpu.sh</code> runs the full scale.</li>
+      <li>Cross-day numbers use our own split, so they aren't comparable with the FALCON leaderboard.</li>
+      <li>No peer-reviewed results from Neuralink's robotic-arm study exist yet to compare against.</li>
+    </ul>
+  </div>
+</main>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { page, loadJSON, renderTable, css } from "./assets/common.js";
+page("robotic_arm");
+
+const D = "data/robotic_arm/";
+const [metrics, eps] = await Promise.all([loadJSON(D + "metrics.json"), loadJSON(D + "episodes.json")]);
+const SA = metrics.shared_autonomy, DEC = metrics.decoding;
+
+// ---- stats ----------------------------------------------------------------
+const best = (o, k) => Math.max(...Object.entries(o).filter(([m]) => m !== "dasa" && m !== "direct").map(([, v]) => v[k]));
+document.getElementById("stats").innerHTML = [
+  [`${Math.round(100 * SA.standard.direct.success)}% → ${Math.round(100 * SA.standard.dasa.success)}%`, "grasp success, decoder alone → with DASA"],
+  [`${Math.round(100 * SA.change_of_mind.dasa.success)}%`, `change-of-mind success (best baseline ${Math.round(100 * best(SA.change_of_mind, "success"))}%)`],
+  [`${SA.change_of_mind.dasa.yield_latency_median.toFixed(2)} s`, "to yield after the user switches target"],
+  [DEC.held_in_minival.find(r => r.decoder === "gru").r2_vw.toFixed(3), "best within-session 7-DoF R² on FALCON H1 (GRU)"],
+].map(([v, k]) => `<div class="stat"><div class="v" style="color:var(--arm)">${v}</div><div class="k">${k}</div></div>`).join("");
+
+// ---- tables ---------------------------------------------------------------
+const SC = { standard: "Standard", change_of_mind: "Change of mind", clutter: "Clutter" };
+function showSA(sc) {
+  document.querySelectorAll("#scTabs button").forEach(b => b.classList.toggle("on", b.dataset.v === sc));
+  const rows = Object.entries(SA[sc]).map(([k, v]) => ({ k, ...v, label: k === "dasa" ? "DASA (proposed)" : v.label }));
+  renderTable(document.getElementById("saTable"), rows, [
+    { key: "label", label: "Method" },
+    { key: "success", label: "Success (95% CI)", num: true, fmt: (v, r) => `${(100 * v).toFixed(0)}% <span style="color:var(--faint)">[${r.success_ci95.map(x => Math.round(100 * x)).join("–")}]</span>` },
+    { key: "wrong_grasp", label: "Wrong object", num: true, fmt: v => (100 * v).toFixed(0) + "%" },
+    { key: "time_to_grasp_mean", label: "Time (s)", num: true, fmt: v => v.toFixed(1) },
+    { key: "path_eff", label: "Path efficiency", num: true, fmt: v => v.toFixed(2) },
+    { key: "user_share", label: "User share", num: true, fmt: v => v.toFixed(2) },
+    ...(sc === "change_of_mind" ? [{ key: "yield_latency_median", label: "Yield (s)", num: true, fmt: v => v.toFixed(2) }] : []),
+  ], { bestKey: "success" });
+}
+document.getElementById("scTabs").innerHTML = Object.entries(SC).map(([k, v]) => `<button data-v="${k}">${v}</button>`).join("");
+document.getElementById("scTabs").addEventListener("click", e => e.target.dataset.v && showSA(e.target.dataset.v));
+showSA("standard");
+
+renderTable(document.getElementById("decTable"), DEC.held_in_minival, [
+  { key: "label", label: "Decoder" },
+  { key: "r2_vw", label: "R² (within session)", num: true, fmt: (v, r) => r.r2_vw_std && r.r2_vw_std < 0.05 ? `${v.toFixed(3)} ± ${r.r2_vw_std.toFixed(3)}` : v.toFixed(3) },
+], { bestKey: "r2_vw" });
+const XD = [
+  ["wiener_daynorm", "Wiener (zero-shot) / refit pooled", { zeroshot: "wiener_daynorm_zeroshot", "10s": "wiener_pooled_10s", "20s": "wiener_pooled_20s", "45s": "wiener_pooled_45s" }],
+  ["kalman", "Kalman", { zeroshot: "kalman_zeroshot" }],
+  ["gru", "GRU, fine-tune all", { zeroshot: "gru_zeroshot", "10s": "gru_10s", "20s": "gru_20s", "45s": "gru_45s" }],
+  ["transformer", "Transformer, fine-tune all", { zeroshot: "transformer_zeroshot", "10s": "transformer_10s", "20s": "transformer_20s", "45s": "transformer_45s" }],
+  ["ms_gru_ftall", "Multi-day GRU, fine-tune all", { "10s": "ms_gru_ftall_10s", "20s": "ms_gru_ftall_20s", "45s": "ms_gru_ftall_45s" }],
+  ["ms_gru", "Multi-day GRU, read-in only (proposed)", { zeroshot: "ms_gru_zeroshot", "10s": "ms_gru_10s", "20s": "ms_gru_20s", "45s": "ms_gru_45s" }],
+  ["ms_gru_noaug", "…same, no augmentation", { zeroshot: "ms_gru_noaug_zeroshot", "10s": "ms_gru_noaug_10s", "20s": "ms_gru_noaug_20s", "45s": "ms_gru_noaug_45s" }],
+];
+const byS = Object.fromEntries(DEC.held_out_days.map(r => [r.setting, r]));
+const xdRows = XD.map(([, label, m]) => Object.fromEntries([["label", label], ...Object.entries(m).map(([b, set]) => [b, byS[set]])]));
+const xf = r => r ? r.r2_vw.toFixed(3) : null;
+renderTable(document.getElementById("xdTable"), xdRows, [
+  { key: "label", label: "Method" },
+  { key: "zeroshot", label: "Zero-shot", num: true, fmt: xf },
+  { key: "10s", label: "10 s", num: true, fmt: xf },
+  { key: "20s", label: "20 s", num: true, fmt: xf },
+  { key: "45s", label: "45 s", num: true, fmt: xf },
+]);
+
+// ---- 3D scene --------------------------------------------------------------
+const arm = eps.arm;
+function dh(al, a, d, th) { const ct = Math.cos(th), st = Math.sin(th), ca = Math.cos(al), sa = Math.sin(al); return [[ct, -st * ca, st * sa, a * ct], [st, ct * ca, -ct * sa, a * st], [0, sa, ca, d], [0, 0, 0, 1]]; }
+function mul(A, B) { return A.map(r => B[0].map((_, j) => r.reduce((s, x, k) => s + x * B[k][j], 0))); }
+function fk(q) {
+  let T = dh(arm.base.alpha, arm.base.a, arm.base.d, arm.base.theta); const frames = [T];
+  arm.joints.forEach((j, i) => { T = mul(T, dh(j.alpha, j.a, j.d, q[i] + j.theta_offset)); frames.push(T); });
+  frames.push(mul(T, [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, arm.tool_d], [0, 0, 0, 1]]));
+  return frames;
+}
+// Check our FK against the exported test vector.
+{ const f = fk(arm.test_vector.q).at(-1), t = arm.test_vector.tcp_xyz;
+  const err = Math.hypot(f[0][3] - t[0], f[1][3] - t[1], f[2][3] - t[2]);
+  if (err > 1e-6) console.warn("FK mismatch", err); }
+
+const host = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+host.append(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 4 / 3, 0.01, 20);
+camera.up.set(0, 0, 1); camera.position.set(1.35, 1.0, 0.95);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0.35, -0.05, 0.15); controls.update();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.1));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(1, -1, 2); scene.add(sun);
+
+const tb = eps.table;
+const table = new THREE.Mesh(new THREE.BoxGeometry(tb.x_range[1] - tb.x_range[0], tb.y_range[1] - tb.y_range[0], 0.02),
+  new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.9 }));
+table.position.set((tb.x_range[0] + tb.x_range[1]) / 2, (tb.y_range[0] + tb.y_range[1]) / 2, tb.z - 0.01);
+scene.add(table);
+const grid = new THREE.GridHelper(0.9, 9, 0x3a4252, 0x3a4252); grid.rotation.x = Math.PI / 2; grid.position.copy(table.position).setZ(0.001); scene.add(grid);
+
+const linkMat = new THREE.MeshStandardMaterial({ color: 0xc9d1dc, metalness: 0.3, roughness: 0.45 });
+const jointMat = new THREE.MeshStandardMaterial({ color: 0x5fd39a, metalness: 0.2, roughness: 0.5 });
+const links = [], joints = [];
+for (let i = 0; i < 9; i++) {
+  const l = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 1, 20), linkMat); scene.add(l); links.push(l);
+  const j = new THREE.Mesh(new THREE.SphereGeometry(0.042, 20, 14), jointMat); scene.add(j); joints.push(j);
+}
+const fingerMat = new THREE.MeshStandardMaterial({ color: 0xe6e9ef });
+const fingers = [0, 1].map(() => { const f = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.018, 0.06), fingerMat); scene.add(f); return f; });
+const trailGeo = new THREE.BufferGeometry(), trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x5fd39a }));
+scene.add(trail);
+const goalRing = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.006, 8, 40), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+scene.add(goalRing);
+let objMeshes = [];
+
+const up = new THREE.Vector3(0, 1, 0);
+function placeLink(mesh, a, b) {
+  const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b), d = vb.clone().sub(va), len = d.length();
+  mesh.visible = len > 1e-4; if (!mesh.visible) return;
+  mesh.position.copy(va).add(vb).multiplyScalar(0.5);
+  mesh.scale.set(1, len, 1);
+  mesh.quaternion.setFromUnitVectors(up, d.normalize());
+}
+
+// ---- episode playback ------------------------------------------------------
+const epSel = document.getElementById("epSel");
+const SCN = { standard: "standard", change_of_mind: "change of mind", clutter: "clutter" };
+epSel.innerHTML = eps.episodes.map((e, i) => `<option value="${i}">${e.method_label} · ${SCN[e.scenario]} · ${e.outcome}</option>`).join("");
+let ep, k = 0, playing = true, speed = 1, last = performance.now(), acc = 0;
+const scrub = document.getElementById("scrub");
+
+function loadEpisode(i) {
+  ep = eps.episodes[i]; k = 0; acc = 0;
+  objMeshes.forEach(m => scene.remove(m));
+  objMeshes = ep.objects.map(o => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(...o.size_xyz), new THREE.MeshStandardMaterial({ color: o.color, roughness: 0.6 }));
+    m.position.set(o.grasp_xyz[0], o.grasp_xyz[1], o.size_xyz[2] / 2); m.rotation.z = o.yaw; scene.add(m); return m;
+  });
+  scrub.max = ep.n_steps - 1;
+  const color = ep.outcome === "success" ? "var(--good)" : "var(--bad)";
+  document.getElementById("outcome").innerHTML = `<span style="color:${color}">${ep.outcome.toUpperCase()}</span> · ${ep.time_to_grasp_s.toFixed(1)} s · path eff. ${ep.path_efficiency.toFixed(2)} · user share ${ep.user_share.toFixed(2)}`;
+  document.getElementById("post").innerHTML = ep.objects.map((o, j) => `<div class="post-row"><span id="pn${j}">${o.name}</span><div class="bar"><div id="pb${j}" style="background:${o.color}"></div></div><span id="pv${j}"></span></div>`).join("");
+  draw();
+}
+
+function draw() {
+  const s = ep.steps, q = s.q[k];
+  const fr = fk(q), pts = fr.map(T => [T[0][3], T[1][3], T[2][3]]);
+  for (let i = 0; i < links.length; i++) {
+    if (i + 1 < pts.length) { placeLink(links[i], pts[i], pts[i + 1]); joints[i].position.set(...pts[i]); joints[i].visible = true; }
+    else { links[i].visible = false; joints[i].visible = false; }
+  }
+  // Gripper fingers: offset along the tool's local x-axis by the opening.
+  const T = fr.at(-1), xAxis = new THREE.Vector3(T[0][0], T[1][0], T[2][0]), zAxis = new THREE.Vector3(T[0][2], T[1][2], T[2][2]);
+  const open = s.gripper_open[k], w = 0.012 + 0.035 * open, tcp = new THREE.Vector3(...pts.at(-1));
+  const basis = new THREE.Matrix4().makeBasis(xAxis, new THREE.Vector3().crossVectors(zAxis, xAxis), zAxis);
+  fingers.forEach((f, i) => { f.position.copy(tcp).addScaledVector(xAxis, (i ? 1 : -1) * w).addScaledVector(zAxis, -0.02); f.quaternion.setFromRotationMatrix(basis); });
+  trailGeo.setFromPoints(s.tcp_xyz.slice(0, k + 1).map(p => new THREE.Vector3(...p)));
+  const g = ep.objects[s.true_goal[k]];
+  goalRing.position.set(g.grasp_xyz[0], g.grasp_xyz[1], 0.004);
+  ep.objects.forEach((o, j) => {
+    const p = s.goal_posterior[k][j];
+    document.getElementById("pb" + j).style.width = (100 * p) + "%";
+    document.getElementById("pv" + j).textContent = p.toFixed(2);
+    document.getElementById("pn" + j).className = j === s.true_goal[k] ? "goal" : "";
+  });
+  const a = s.alpha[k];
+  document.getElementById("alphaBar").style.width = (100 * a) + "%"; document.getElementById("alphaV").textContent = a.toFixed(2);
+  document.getElementById("gripBar").style.width = (100 * open) + "%"; document.getElementById("gripV").textContent = open.toFixed(2);
+  document.getElementById("epInfo").innerHTML = `t = ${s.t[k].toFixed(2)} s<br>user wants: <b>${g.name}</b>${ep.scenario === "change_of_mind" ? `<br>(starts on ${ep.objects[ep.initial_goal].name}, switches to ${ep.objects[ep.final_goal].name})` : ""}<br>white ring = current true goal`;
+  scrub.value = k;
+}
+
+function resize() {
+  const w = host.clientWidth, h = host.clientHeight;
+  renderer.setSize(w, h, false); renderer.domElement.style.width = "100%"; renderer.domElement.style.height = "100%";
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+function setBg() { scene.background = new THREE.Color(css("--bg-2") || "#11141b"); }
+setBg(); resize();
+window.addEventListener("resize", resize); window.addEventListener("themechange", setBg);
+
+function tick(now) {
+  const dt = (now - last) / 1000; last = now;
+  if (playing && ep) {
+    acc += dt * speed;
+    while (acc >= ep.dt_s) { acc -= ep.dt_s; k++; if (k >= ep.n_steps) { k = ep.n_steps - 1; acc = -1.5; playing = false; setTimeout(() => { k = 0; acc = 0; playing = true; }, 1500); break; } }
+    draw();
+  }
+  controls.update(); renderer.render(scene, camera); requestAnimationFrame(tick);
+}
+epSel.addEventListener("change", () => loadEpisode(+epSel.value));
+document.getElementById("play").addEventListener("click", e => { playing = !playing; e.target.textContent = playing ? "Pause" : "Play"; });
+document.getElementById("speed").addEventListener("change", e => speed = +e.target.value);
+scrub.addEventListener("input", () => { playing = false; document.getElementById("play").textContent = "Play"; k = +scrub.value; draw(); });
+const cm = eps.episodes.findIndex(e => e.id.startsWith("dasa_change_of_mind"));
+epSel.value = String(cm >= 0 ? cm : 0); loadEpisode(+epSel.value);
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

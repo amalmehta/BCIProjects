@@ -1,0 +1,14 @@
+# Python 3.10-3.12, CUDA 12.x. Install torch from the CUDA wheel index if needed:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.2
+torchvision>=0.17
+numpy>=1.26,<2.0
+scipy>=1.11
+scikit-image>=0.22
+matplotlib>=3.8
+pyyaml>=6.0
+pillow>=10.0
+certifi
+onnx>=1.15
+onnxruntime>=1.17
+pytest>=7.4

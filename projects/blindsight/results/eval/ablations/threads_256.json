@@ -1,0 +1,33 @@
+[
+ {
+  "encoder": "learned",
+  "ssim": 0.6543799638748169,
+  "ssim_patient_std": 0.005550652195111452,
+  "ssim_lowpass": 0.6954124569892883,
+  "psnr": 13.83147144317627,
+  "acc": 0.9359999895095825,
+  "active_electrodes": 57.30799865722656,
+  "charge_nc_per_phase": 889.1610107421875,
+  "max_amp_ua": 99.9980239868164,
+  "decoder_ssim": 0.6771625876426697,
+  "variant": "threads_256",
+  "seed": 0,
+  "layout": "threads_256",
+  "n_electrodes": 256
+ },
+ {
+  "encoder": "intensity",
+  "ssim": 0.6212620139122009,
+  "ssim_patient_std": 0.00631332478309861,
+  "ssim_lowpass": 0.653176486492157,
+  "psnr": 13.328638076782227,
+  "acc": 0.9235000014305115,
+  "active_electrodes": 63.938499450683594,
+  "charge_nc_per_phase": 968.37841796875,
+  "max_amp_ua": 100.0,
+  "variant": "threads_256",
+  "seed": null,
+  "layout": "threads_256",
+  "n_electrodes": 256
+ }
+]

@@ -1,0 +1,13 @@
+18:53:41 letters: classifier on original images acc=0.808
+19:03:51 letters: classifier on original images acc=0.808
+19:07:12   letters  intensity_uncalibrated   ssim=0.640 lp=0.753 psnr=15.20 acc=0.764 active=229 charge=3516nC
+19:10:05   letters  intensity                ssim=0.625 lp=0.761 psnr=14.78 acc=0.766 active=254 charge=3900nC
+19:13:07   letters  edge                     ssim=0.377 lp=0.476 psnr=10.15 acc=0.697 active=256 charge=3774nC
+19:16:27   letters  salient_edge             ssim=0.414 lp=0.516 psnr=10.63 acc=0.646 active=253 charge=3158nC
+19:20:05   letters  learned                  ssim=0.736 lp=0.891 psnr=17.40 acc=0.812 active=230 charge=3216nC
+19:36:05   letters  learned_adapted          ssim=0.753 lp=0.911 psnr=17.89 acc=0.804 active=245 charge=3218nC
+19:41:09   letters  learned                  ssim=0.735 lp=0.891 psnr=17.37 acc=0.808 active=230 charge=3220nC
+19:56:36   letters  learned_adapted          ssim=0.752 lp=0.910 psnr=17.87 acc=0.803 active=247 charge=3233nC
+20:00:28   letters  learned                  ssim=0.734 lp=0.890 psnr=17.31 acc=0.808 active=230 charge=3217nC
+20:17:49   letters  learned_adapted          ssim=0.753 lp=0.911 psnr=17.83 acc=0.812 active=245 charge=3232nC
+20:26:16   oracle ssim=0.744 psnr=17.29

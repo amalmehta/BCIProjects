@@ -1,0 +1,13 @@
+\begin{tabular}{l c ccccccc}
+\toprule
+Decoder & R$^2_{\mathrm{vw}}$ & \texttt{tx} & \texttt{ty} & \texttt{tz} & \texttt{rx} & \texttt{g1} & \texttt{g2} & \texttt{g3} \\
+\midrule
+Wiener filter, global norm. & 0.319 & 0.17 & 0.02 & 0.15 & 0.34 & 0.42 & 0.32 & 0.25 \\
+Wiener filter & 0.321 & 0.18 & 0.03 & 0.17 & 0.34 & 0.42 & 0.33 & 0.25 \\
+Kalman filter & 0.242 & 0.17 & 0.08 & 0.18 & 0.33 & 0.35 & 0.23 & 0.13 \\
+GRU & 0.626{\scriptsize$\pm$0.002} & 0.30 & 0.25 & 0.32 & 0.51 & 0.74 & 0.65 & 0.56 \\
+Causal Transformer & 0.578 & 0.31 & 0.26 & 0.34 & 0.54 & 0.72 & 0.55 & 0.49 \\
+Multi-day GRU, no aug. & 0.559 & 0.20 & 0.04 & 0.30 & 0.38 & 0.74 & 0.57 & 0.48 \\
+\textbf{Multi-day GRU (ours)} & 0.574{\scriptsize$\pm$0.000} & 0.20 & 0.07 & 0.24 & 0.39 & 0.73 & 0.58 & 0.53 \\
+\bottomrule
+\end{tabular}

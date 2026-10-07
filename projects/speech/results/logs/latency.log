@@ -1,0 +1,45 @@
+gru_aug_s0 {"frames": 140, "hop_ms": 120.0, "full_forward_ms": 74.9149170005694, "sentence_ms": 17040.0, "real_time_factor": 0.004396415316934824, "per_frame_ms": 2.593396385678456, "algorithmic_lookahead_ms": 60.0, "n_params": 5458729, "trained": true}
+gru_bi_aug_s0 {"frames": 140, "hop_ms": 120.0, "full_forward_ms": 160.93479600385763, "sentence_ms": 17040.0, "real_time_factor": 0.009444530281916528, "per_frame_ms": null, "algorithmic_lookahead_ms": "end of sentence", "latency_after_sentence_end_ms": 160.93479600385763, "n_params": 8421417, "trained": false}
+conformer_aug_s0 {"frames": 140, "hop_ms": 120.0, "full_forward_ms": 46.3072840066161, "sentence_ms": 17040.0, "real_time_factor": 0.002717563615411743, "per_frame_ms": 0.33076631433297216, "per_frame_ms_recompute_window64": 34.1815699939616, "algorithmic_lookahead_ms": 60.0, "n_params": 4993097, "trained": true}
+{
+  "threads": 2,
+  "models": {
+    "gru_aug_s0": {
+      "frames": 140,
+      "hop_ms": 120.0,
+      "full_forward_ms": 74.9149170005694,
+      "sentence_ms": 17040.0,
+      "real_time_factor": 0.004396415316934824,
+      "per_frame_ms": 2.593396385678456,
+      "algorithmic_lookahead_ms": 60.0,
+      "n_params": 5458729,
+      "trained": true
+    },
+    "gru_bi_aug_s0": {
+      "frames": 140,
+      "hop_ms": 120.0,
+      "full_forward_ms": 160.93479600385763,
+      "sentence_ms": 17040.0,
+      "real_time_factor": 0.009444530281916528,
+      "per_frame_ms": null,
+      "algorithmic_lookahead_ms": "end of sentence",
+      "latency_after_sentence_end_ms": 160.93479600385763,
+      "n_params": 8421417,
+      "trained": false
+    },
+    "conformer_aug_s0": {
+      "frames": 140,
+      "hop_ms": 120.0,
+      "full_forward_ms": 46.3072840066161,
+      "sentence_ms": 17040.0,
+      "real_time_factor": 0.002717563615411743,
+      "per_frame_ms": 0.33076631433297216,
+      "per_frame_ms_recompute_window64": 34.1815699939616,
+      "algorithmic_lookahead_ms": 60.0,
+      "n_params": 4993097,
+      "trained": true
+    }
+  },
+  "beam_search_ms_per_sentence": 209.7960282000713,
+  "gpt2_rescore_ms_per_sentence": 960.2933331669192
+}

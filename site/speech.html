@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speech Decoding</title>
+<meta name="description" content="Decoding attempted speech from intracortical recordings: a causal Conformer phoneme decoder with CTC, a trigram language model and GPT-2 rescoring.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<style>
+  .ribbon { display: flex; gap: 2px; align-items: flex-end; height: 120px; overflow: hidden; padding: 6px 0; }
+  .ribbon div { flex: 1 0 4px; border-radius: 2px 2px 0 0; background: var(--speech); transition: opacity .1s; }
+  .phones { font: 15px/1.9 var(--mono); min-height: 2em; color: var(--text); word-spacing: 4px; }
+  .phones .b { color: var(--faint); }
+  .textline { font-size: 22px; min-height: 1.5em; }
+  .textline .truth { color: var(--muted); font-size: 15px; display: block; }
+  .diff .ok { color: var(--good); }
+  .diff .bad { color: var(--bad); text-decoration: line-through; text-decoration-thickness: 1px; }
+  .sent { border-bottom: 1px solid var(--line); padding: 10px 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; font-size: 15px; }
+  .sent .t { color: var(--muted); font-size: 13.5px; }
+  .sent .w { font: 12.5px var(--mono); color: var(--faint); text-align: right; }
+</style>
+</head>
+<body>
+<header class="hero wrap" style="--accent: var(--speech)">
+  <div class="eyebrow">Speech · attempted speech to text</div>
+  <h1>From motor-cortex spikes<br>to words, on a laptop CPU.</h1>
+  <p class="lede">A person who can no longer speak attempts to say a sentence. 512 neural features recorded from speech
+  motor cortex every 20 ms go to a phoneme decoder trained with CTC, then a language model turns the phonemes into words. This is the
+  full pipeline on public clinical-trial data, with calibration, robustness and latency analyses, trained under a CPU budget.</p>
+  <div class="btns">
+    <a class="btn primary" href="papers/Speech.pdf">Read the paper (PDF)</a>
+    <a class="btn" href="#replay">Watch a decode</a>
+    <a class="btn" href="#results">Results</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="stats" id="stats"></div>
+  <div class="callout">Real data: the Brain-to-Text '25 release (Card et al., NEJM 2024, participant T15), 10 training sessions,
+  426 held-out sentences. Models were trained for only 480 steps on a shared CPU, so error rates are far above the
+  published system's. The point is a complete, honest pipeline. <code>run_gpu.sh</code> runs the full 45-session scale.</div>
+
+  <h2 id="replay">Live decoding replay</h2>
+  <p class="prose" style="color:var(--muted)">This replays the Conformer's CTC output for a held-out sentence. Bars show the probability of the most likely
+  non-blank phoneme in each 120 ms frame. Phonemes appear as they are emitted, and the language model turns them into words.</p>
+  <div class="demo">
+    <div class="controls"><label>Sentence <select id="pSel"></select></label><button class="playbtn" id="pPlay" type="button">Replay</button></div>
+    <div class="ribbon" id="ribbon"></div>
+    <div class="phones" id="phones"></div>
+    <div class="textline" id="textline"></div>
+    <div class="readout" id="pInfo"></div>
+  </div>
+
+  <h2>Decoded sentences</h2>
+  <p class="prose" style="color:var(--muted)">These are 25 held-out sentences from the best model. Switch the decoding stage to see what the language model adds. Words are
+  green when they match the truth and struck through when they don't.</p>
+  <div class="demo">
+    <div class="controls"><div class="seg" id="stage">
+      <button data-v="no_lm">Lexicon only</button><button data-v="ngram" class="on">+ trigram LM</button><button data-v="llm_rescored">+ GPT-2 rescoring</button>
+    </div><span id="stageWer"></span></div>
+    <div id="sents"></div>
+  </div>
+
+  <h2 id="results">Results</h2>
+  <p class="prose" style="color:var(--muted)">Error rates on 426 held-out sentences, as % (lower is better). The GRU rows average two seeds, and
+  seed 1 stalled for both GRU variants (per-seed values are on hover). The Conformer is a single seed.</p>
+  <div id="mainTable"></div>
+
+  <h3>Calibrating on a new day</h3>
+  <p class="prose" style="color:var(--muted)">This is a held-out session 77 days after the last training day, with word error on 48 sentences. Re-fitting only that day's
+  input layer beats reusing yesterday's, and fine-tuning the whole network is no better.</p>
+  <div class="demo"><svg id="calib" viewBox="0 0 720 300" width="100%"></svg><div class="legend" id="calibLegend" style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)"></div></div>
+
+  <div class="grid two">
+    <figure><img src="data/speech/main_results.png" alt="Phoneme and word error rates by model and decoding stage"><figcaption>Error rates by model and decoding stage.</figcaption></figure>
+    <figure><img src="data/speech/robustness.png" alt="Robustness to electrode loss"><figcaption>Silencing 50% of electrodes costs 5–9 points of phoneme error.</figcaption></figure>
+    <figure><img src="data/speech/posteriors_example.png" alt="CTC posteriors for an example sentence"><figcaption>CTC posteriors: peaky phoneme emissions separated by blanks.</figcaption></figure>
+    <figure><img src="data/speech/calibration.png" alt="Calibration curve on a new day"><figcaption>New-day calibration curve.</figcaption></figure>
+  </div>
+
+  <h2>How it works</h2>
+  <div class="prose">
+    <h3>Neural → phonemes</h3>
+    <p>Each session gets its own affine input layer to absorb day-to-day drift. The features are then patched into 120 ms frames and fed
+    to either the published GRU recipe (baseline) or a <b>causal Conformer with self-conditioned CTC</b>, where intermediate CTC
+    predictions are fed back into later layers. Training uses white-noise and offset augmentation, time masking and electrode dropout. The output is
+    40 phonemes (CMUdict ARPAbet), a word boundary and the CTC blank.</p>
+    <h3>Phonemes → words</h3>
+    <p>A lexicon-constrained CTC beam search runs over a 44,485-word vocabulary with a Kneser–Ney trigram built from public text.
+    Every corpus sentence that matched a dev or test sentence (68 of them) was removed to avoid leakage. An optional GPT-2 rescoring pass re-ranks the n-best list.</p>
+    <h3>Latency</h3>
+    <p>The neural decoder is cheap: 0.3 ms per 120 ms frame for the cached causal Conformer and 2.6 ms for the GRU, on 2 CPU threads.
+    The language model is the bottleneck, at 210 ms per sentence for the beam search and 960 ms for GPT-2 rescoring. That is where a product would need to spend its engineering effort.</p>
+    <h3>Limits</h3>
+    <ul>
+      <li>Models are trained for only 480 steps, so absolute error rates are far from the state of the art (the published system has a few % WER).</li>
+      <li>The Conformer result rests on one seed. One GRU seed stalled, and the 2-seed ensembles are worse than the good seed alone.</li>
+      <li>Several ablations were cut or trimmed because the shared CPU was saturated. All of them are listed in the paper and in <code>gpu.yaml</code>.</li>
+      <li>Dryad blocks scripted downloads, so the data came from a public Hugging Face mirror of the Brain-to-Text '25 release.</li>
+    </ul>
+  </div>
+</main>
+
+<script type="module">
+import { page, loadJSON, renderTable, css } from "./assets/common.js";
+page("speech");
+
+const D = "data/speech/";
+const [metrics, decodes, post, calib] = await Promise.all(["metrics", "decodes", "posteriors", "calibration"].map(n => loadJSON(D + n + ".json")));
+const pct = v => (100 * v).toFixed(1);
+const find = (model, system, setting) => metrics.rows.find(r => r.model === model && r.system === system && r.setting === setting);
+
+// ---- stats ----------------------------------------------------------------
+const conf = s => find("conformer_aug", "single model", s);
+const gruBest = s => Math.min(...Object.values(find("gru_baseline", "single model", s).per_seed));
+document.getElementById("stats").innerHTML = [
+  [pct(conf("greedy (PER)").mean) + "%", `phoneme error, Conformer (best GRU seed ${pct(gruBest("greedy (PER)"))}%)`],
+  [pct(conf("3-gram + GPT-2 rescoring").mean) + "%", `word error with LM + GPT-2 (best GRU seed ${pct(gruBest("3-gram + GPT-2 rescoring"))}%)`],
+  ["0.3 ms", "per 120 ms frame, cached causal Conformer on CPU"],
+  [String(metrics.test_sentences), "held-out sentences, participant T15"],
+].map(([v, k]) => `<div class="stat"><div class="v" style="color:var(--speech)">${v}</div><div class="k">${k}</div></div>`).join("");
+
+// ---- results table (model × stage, single models) -------------------------
+const SETTINGS = ["greedy (PER)", "lexicon, no LM", "lexicon + 3-gram", "3-gram + GPT-2 rescoring"];
+const models = [...new Set(metrics.rows.map(r => r.model))];
+const cell = r => r ? `<span title="${Object.entries(r.per_seed ?? {}).map(([s, v]) => `seed ${s}: ${pct(v)}%`).join(", ")}">${pct(r.mean)}${r.n > 1 ? ` ± ${pct(r.std)}` : ""}</span>` : null;
+const rows = [];
+for (const m of models) for (const sys of ["single model", "ensemble of 2"]) {
+  const rs = SETTINGS.map(s => find(m, sys, s));
+  if (!rs.some(Boolean)) continue;
+  const label = metrics.rows.find(r => r.model === m).label + (sys === "ensemble of 2" ? " · 2-seed ensemble" : "");
+  rows.push({ label, per: cell(rs[0]), nolm: cell(rs[1]), ng: cell(rs[2]), llm: cell(rs[3]), key: rs[2]?.mean });
+}
+renderTable(document.getElementById("mainTable"), rows, [
+  { key: "label", label: "Model" },
+  { key: "per", label: "Phoneme error (greedy)", num: true },
+  { key: "nolm", label: "Word error, lexicon", num: true },
+  { key: "ng", label: "Word error, + trigram", num: true },
+  { key: "llm", label: "Word error, + GPT-2", num: true },
+], { bestKey: "key", lowerIsBetter: true });
+
+// ---- word diff -------------------------------------------------------------
+const norm = s => s.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter(Boolean);
+function diff(truth, hyp) {
+  const a = norm(truth), b = norm(hyp), n = a.length, m = b.length;
+  const L = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (j < m) {
+    if (i < n && a[i] === b[j]) { out.push(`<span class="ok">${b[j]}</span>`); i++; j++; }
+    else if (i < n && L[i + 1][j] >= L[i][j + 1]) i++;
+    else { out.push(`<span class="bad">${b[j]}</span>`); j++; }
+  }
+  return `<span class="diff">${out.join(" ") || "<span class='bad'>(empty)</span>"}</span>`;
+}
+
+// ---- sentence browser ------------------------------------------------------
+const WER = { no_lm: "wer_no_lm", ngram: "wer_ngram", llm_rescored: "wer_llm" };
+function showStage(st) {
+  document.querySelectorAll("#stage button").forEach(b => b.classList.toggle("on", b.dataset.v === st));
+  const S = decodes.sentences;
+  document.getElementById("sents").innerHTML = S.map(s => `<div class="sent"><div>${diff(s.truth, s[st] ?? "")}</div>
+    <div class="w">WER ${pct(s[WER[st]])}%</div><div class="t">${s.truth}</div><div class="w">${s.session}</div></div>`).join("");
+  const mean = S.reduce((a, s) => a + s[WER[st]], 0) / S.length;
+  document.getElementById("stageWer").textContent = `mean WER on these ${S.length}: ${pct(mean)}%`;
+}
+document.getElementById("stage").addEventListener("click", e => e.target.dataset.v && showStage(e.target.dataset.v));
+showStage("ngram");
+
+// ---- posterior replay ------------------------------------------------------
+const A = post.alphabet, BL = post.blank_index, WB = post.word_boundary_index;
+const pSel = document.getElementById("pSel");
+pSel.innerHTML = post.sentences.map((s, i) => `<option value="${i}">“${s.truth}”</option>`).join("");
+let timer = 0;
+function replay() {
+  clearInterval(timer);
+  const s = post.sentences[+pSel.value];
+  const rib = document.getElementById("ribbon");
+  rib.innerHTML = s.topk.map(() => "<div style='height:2px;opacity:.15'></div>").join("");
+  const bars = [...rib.children];
+  const phones = document.getElementById("phones"), text = document.getElementById("textline");
+  phones.innerHTML = ""; text.innerHTML = `<span class="truth">Truth: ${s.truth}</span>`;
+  let f = 0;
+  const step = Math.max(30, 2200 / s.n_frames);
+  timer = setInterval(() => {
+    if (f >= s.n_frames) {
+      clearInterval(timer);
+      text.innerHTML = `<span class="truth">Truth: ${s.truth}</span>${diff(s.truth, s.decoded_ngram)}`;
+      return;
+    }
+    const nb = s.topk[f].find(([c]) => c !== BL) ?? [BL, 0];
+    bars[f].style.height = Math.max(2, 100 * nb[1]) + "px";
+    bars[f].style.opacity = 0.25 + 0.75 * nb[1];
+    bars[f].title = `${(f * s.frame_ms / 1000).toFixed(2)} s: ${A[nb[0]]} ${nb[1].toFixed(2)}`;
+    for (const e of s.emissions) if (e.frame === f)
+      phones.insertAdjacentHTML("beforeend", e.phoneme === "|" ? `<span class="b"> | </span>` : `${e.phoneme} `);
+    document.getElementById("pInfo").textContent = `${(f * s.frame_ms / 1000).toFixed(2)} / ${s.duration_s.toFixed(1)} s · frame ${f + 1} of ${s.n_frames} (${s.frame_ms} ms)`;
+    f++;
+  }, step);
+}
+pSel.addEventListener("change", replay);
+document.getElementById("pPlay").addEventListener("click", replay);
+replay();
+
+// ---- calibration chart -----------------------------------------------------
+function drawCalib() {
+  const svg = document.getElementById("calib"), W = 720, H = 300, L = 50, B = 40, T = 12, R = 16;
+  const xs = [0, 10, 25, 50, 100, 200], xp = x => L + xs.indexOf(x) / (xs.length - 1) * (W - L - R);
+  const lo = 0.65, hi = 0.85, yp = y => T + (1 - (y - lo) / (hi - lo)) * (H - T - B);
+  const m = css("--muted"), ln = css("--line");
+  const CC = { day_layer: "#ffb86b", full: "#7cc4ff", reuse: "#ff7a7a" };
+  let s = "";
+  for (let y = lo; y <= hi + 1e-9; y += 0.05) s += `<line x1="${L}" x2="${W - R}" y1="${yp(y)}" y2="${yp(y)}" stroke="${ln}"/><text x="${L - 8}" y="${yp(y) + 4}" fill="${m}" font-size="11" text-anchor="end">${Math.round(100 * y)}%</text>`;
+  xs.forEach(x => s += `<text x="${xp(x)}" y="${H - B + 18}" fill="${m}" font-size="11" text-anchor="middle">${x}</text>`);
+  s += `<text x="${(W + L) / 2}" y="${H - 4}" fill="${m}" font-size="12" text-anchor="middle">calibration sentences from the new day</text>`;
+  const reuse = calib.curve.find(c => c.mode === "reuse");
+  if (reuse) s += `<line x1="${L}" x2="${W - R}" y1="${yp(reuse.wer)}" y2="${yp(reuse.wer)}" stroke="${CC.reuse}" stroke-dasharray="5 5" stroke-width="1.8"/>`;
+  for (const mode of ["day_layer", "full"]) {
+    const pts = calib.curve.filter(c => c.mode === mode).sort((a, b) => a.n_sentences - b.n_sentences);
+    s += `<polyline fill="none" stroke="${CC[mode]}" stroke-width="2.2" points="${pts.map(p => `${xp(p.n_sentences)},${yp(p.wer)}`).join(" ")}"/>`;
+    s += pts.map(p => `<circle cx="${xp(p.n_sentences)}" cy="${yp(p.wer)}" r="3.5" fill="${CC[mode]}"><title>${calib.modes[mode]}: ${p.n_sentences} sentences → WER ${pct(p.wer)}%</title></circle>`).join("");
+  }
+  svg.innerHTML = s;
+  document.getElementById("calibLegend").innerHTML = Object.entries(calib.modes).map(([k, v]) =>
+    `<span><i style="display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;background:${CC[k]}"></i>${v}</span>`).join("");
+}
+drawCalib();
+window.addEventListener("themechange", drawCalib);
+</script>
+</body>
+</html>

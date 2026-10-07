@@ -1,0 +1,58 @@
+# Small configuration verified on a shared 8-core Intel Mac (CPU only, 2 torch threads).
+name: cpu
+data_dir: ../../data/telepathy          # relative to the project directory
+results_dir: results
+torch_threads: 2                        # training
+eval_threads: 1                         # eval / adaptation / simulator (tiny sequential ops)
+n_anchor_days: 5                        # first 5 sessions = calibration ("held-in") days
+lag_candidates: [0, 1, 2, 3, 4, 5, 6]   # neural-to-velocity lag (bins), chosen on anchor validation
+seeds: [0, 1, 2]
+
+wiener: {n_lags: 10, alphas: [10.0, 30.0, 100.0, 1000.0, 10000.0]}
+kalman: {smooth_bins: [3, 5, 8], q_scales: [0.3, 1.0, 3.0]}
+fa: {q: 10, smooth_bins: 5, n_lags: 5, stable_frac: 0.6}
+
+train:
+  steps: 1500
+  batch: 32
+  window: 64
+  warmup_bins: 24
+  lr: 0.002
+  eval_every: 250
+gru: {hidden: 128}
+sld: {d: 128, backbone: gru, n_layers: 1}
+ablations:                              # each trained with seed 0 only
+  sld_no_aug: {augment: false}
+  sld_no_ssl: {ssl_weight: 0.0}
+  sld_no_adapters: {model: {adapters: false}}
+  sld_transformer: {model: {backbone: transformer, d: 64, n_layers: 2, window: 16}}
+  gru_aug: {kind: gru, augment: true}
+
+adapt: {steps: 300, batch: 16, fewshot_steps: 150, kl_weight: 0.1, nll_weight: 1.0, adapter_l2: 0.01}
+fewshot_trials: [0, 1, 5, 20, 50]
+ablation_day_stride: 3                  # unsupervised alignment of ablation models on every 3rd held-out day
+fewshot_day_stride: 4                   # few-shot curves on every 4th held-out day (CPU budget)
+fewshot_max_days: 3                     # CPU budget: the first 3 of those days (days 20, 28, 40)
+fewshot_seeds: [0]
+
+stress:
+  drop_fracs: [0.0, 0.1, 0.2, 0.3, 0.5]
+  shift_fracs: [0.0, 0.1, 0.2, 0.3, 0.5]
+  repeats: 3
+
+sim:
+  grid: 10                              # headline grid (35x35 is reported in the sweep)
+  grid_sweep: [6, 8, 10, 15, 20, 35]
+  seconds: 60
+  tune_seconds: 30
+  eval_sessions: 4
+  gains: [0.75, 1.0, 1.5]
+  smooths: [0.0, 0.6]
+  click_holds: [0.1, 0.25]              # user's caution before clicking (tuned per decoder)
+  encoder_hidden: 128
+  encoder_steps: 1000
+  noise_grid: [0.0, 0.25, 0.5, 0.75, 1.0]
+  crossday_sessions: 3
+  crossday_days: [indy_20161005_06, indy_20161026_03, indy_20161207_02, indy_20170131_02]
+  refit_seconds: 120
+  ablations: [sld_no_aug, sld_no_ssl, sld_no_adapters, sld_transformer, gru_aug]

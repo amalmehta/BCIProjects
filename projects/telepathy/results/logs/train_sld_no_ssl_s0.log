@@ -1,0 +1,6 @@
+[18:06:14] [sld] step 250 loss 0.3592 val R2 0.6633 (143s)
+[18:09:07] [sld] step 500 loss 0.1842 val R2 0.7511 (316s)
+[18:12:03] [sld] step 750 loss 0.1892 val R2 0.7640 (492s)
+[18:14:58] [sld] step 1000 loss 0.1197 val R2 0.7742 (666s)
+[18:17:33] [sld] step 1250 loss 0.1120 val R2 0.7799 (821s)
+[18:20:08] [sld] step 1500 loss 0.1082 val R2 0.7856 (976s)

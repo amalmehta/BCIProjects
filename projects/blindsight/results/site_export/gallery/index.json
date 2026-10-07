@@ -1,0 +1,110 @@
+[
+ {
+  "file": "mnist_0.png",
+  "dataset": "mnist",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "mnist_1.png",
+  "dataset": "mnist",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "mnist_2.png",
+  "dataset": "mnist",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "mnist_3.png",
+  "dataset": "mnist",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "letters_0.png",
+  "dataset": "letters",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "letters_1.png",
+  "dataset": "letters",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "letters_2.png",
+  "dataset": "letters",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "letters_3.png",
+  "dataset": "letters",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "cifar_0.png",
+  "dataset": "cifar",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "cifar_1.png",
+  "dataset": "cifar",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "cifar_2.png",
+  "dataset": "cifar",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ },
+ {
+  "file": "cifar_3.png",
+  "dataset": "cifar",
+  "panels": [
+   "input",
+   "intensity baseline percept",
+   "learned encoder percept"
+  ]
+ }
+]

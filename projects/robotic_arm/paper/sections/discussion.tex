@@ -1,0 +1,23 @@
+\paragraph{What matters for a product.} The two halves of this study point the same way.
+
+\begin{itemize}
+\item \textbf{Offline accuracy on real H1 data is modest and decays across days.} The decoding results bear this out (\S\ref{sec:dec-results}).
+\item \textbf{The decoder alone is far from enough at that accuracy.} In the simulated closed loop, decoder-only control almost never completes a 3\,cm/20$^\circ$ grasp until offline R$^2$ exceeds about 0.6.
+\item \textbf{Assistance makes the task feasible at present-day accuracy.} Within assistance, \emph{how} the robot infers intent matters most when the scene is cluttered or the user changes their mind. Those are exactly the situations where a wrong grasp is costly.
+\item \textbf{Calibrating the inference to the decoder is the useful idea.} In a BCI the user's command is the output of a decoder, so the inference should model that decoder. Its gain, covariance and autocorrelation are already measured during the open-loop calibration block that every clinical session starts with. Using them removes a hand-tuned temperature, lets wrist and grasp signals contribute evidence, and makes a goal-switching prior usable.
+\end{itemize}
+
+\paragraph{Decoder improvements and assistance are complementary.} Fig.~\ref{fig:sweep} turns offline R$^2$ into closed-loop success under our model. The gains of better decoders appear mostly in decoder-only and weak-assistance regimes; with DASA, success saturates early, and better decoders instead buy speed and authority. One practical reading for product decisions: at a given decoder quality, the assistance policy determines how much control can be handed back to the user without failures (Fig.~\ref{fig:authority}).
+
+\paragraph{Recalibration cost.} Fitting only a per-day input layer suits daily recalibration of a deployed decoder. The trained core is fixed, so the decoder's behaviour stays predictable, and only a small, well-regularised layer changes. With seconds of data it is the only adaptation we tested that never made things worse. On H1 at this scale, however, its accuracy only matches a single-read-in Transformer used zero-shot. With more training days, which is the regime of NDT2/NDT3-style pretraining~\cite{ye2023neural,ye2025generalist}, we expect the multi-day core to benefit more. \texttt{configs/gpu.yaml} is set up to test this.
+
+\paragraph{A data-handling pitfall.} The public FALCON H1 calibration files contain the minival segment, which is the first part of each calibration file, bin for bin. Training on them without removing it inflated our GRU's held-in R$^2$ to 0.80 (versus \GRUWithin{} after removal) in an earlier run, whose log is retained in the repository. The Wiener filter was inflated far less (0.38 versus \WienerWithin). All results reported here strip the overlap, and a unit test guards it.
+
+\paragraph{Future work.}
+\begin{itemize}
+\item Human-in-the-loop evaluation, including user preference for authority.
+\item Learned perception, so that goals are not given by known object poses.
+\item Grasp physics.
+\item Inferring goals over continuous targets, not only a discrete set of objects.
+\item Closed-loop recalibration with intention relabelling~\cite{gilja2012high,wilson2025longterm}, using DASA's goal posterior as the relabelling signal.
+\end{itemize}

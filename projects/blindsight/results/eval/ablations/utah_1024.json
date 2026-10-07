@@ -1,0 +1,33 @@
+[
+ {
+  "encoder": "learned",
+  "ssim": 0.5597353577613831,
+  "ssim_patient_std": 0.0038315724024096994,
+  "ssim_lowpass": 0.5281792283058167,
+  "psnr": 11.345992088317871,
+  "acc": 0.7110000252723694,
+  "active_electrodes": 230.42250061035156,
+  "charge_nc_per_phase": 2340.68017578125,
+  "max_amp_ua": 97.06742858886719,
+  "decoder_ssim": 0.21198903024196625,
+  "variant": "utah_1024",
+  "seed": 0,
+  "layout": "utah_1024",
+  "n_electrodes": 1024
+ },
+ {
+  "encoder": "intensity",
+  "ssim": 0.5307773947715759,
+  "ssim_patient_std": 0.00509144653251562,
+  "ssim_lowpass": 0.5169698596000671,
+  "psnr": 10.988966941833496,
+  "acc": 0.7300000190734863,
+  "active_electrodes": 252.40750122070312,
+  "charge_nc_per_phase": 3717.508056640625,
+  "max_amp_ua": 100.0,
+  "variant": "utah_1024",
+  "seed": null,
+  "layout": "utah_1024",
+  "n_electrodes": 1024
+ }
+]

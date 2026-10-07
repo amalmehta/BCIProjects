@@ -1,0 +1,18 @@
+\begin{tabular}{lcc}
+\toprule
+Configuration & PER & WER (3-gram) \\
+\midrule
+\multicolumn{3}{l}{\emph{Augmentation (GRU, per seed: s0 / s1)}} \\
+\quad published (noise, offset, cut) & 47.5 / 72.8 & 66.5 / 95.5 \\
+\quad + time mask + electrode dropout & 49.2 / 70.1 & 69.5 / 92.7 \\
+\multicolumn{3}{l}{\emph{Ensembling (posterior average of s0+s1)}} \\
+\quad GRU baseline & 75.3 & 87.2 \\
+\quad GRU + new aug. & 75.7 & 85.9 \\
+\multicolumn{3}{l}{\emph{Day-specific input layer at test time (PER only)}} \\
+\quad own day & 49.2 / 38.8 & -- \\
+\quad previous session's layer & 52.1 / 44.7 & -- \\
+\quad most distant session's layer & 56.4 / 53.0 & -- \\
+\quad identity (no day layer) & 58.1 / 48.5 & -- \\
+\quad\footnotesize (GRU + new aug. / Conformer) & & \\
+\bottomrule
+\end{tabular}

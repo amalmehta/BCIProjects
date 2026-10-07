@@ -1,0 +1,95 @@
+[23:24:14] real reference R2: same-session 10-tap Wiener 0.079; multi-day 600 ms Wiener 0.321
+[23:24:28] kappa 0.5: simulated offline R2 0.099 (real 0.079); err tau 19.7
+[23:24:40] kappa 0.75: simulated offline R2 0.205 (real 0.079); err tau 20.3
+[23:24:51] kappa 1.0: simulated offline R2 0.347 (real 0.079); err tau 18.5
+[23:25:02] kappa 1.5: simulated offline R2 0.514 (real 0.079); err tau 19.1
+[23:25:14] kappa 2.0: simulated offline R2 0.618 (real 0.079); err tau 18.7
+[23:25:26] kappa 3.0: simulated offline R2 0.738 (real 0.079); err tau 18.2
+[23:25:26] real R2 0.079; simulated R2 by kappa: {0.5: 0.099, 0.75: 0.205, 1.0: 0.347, 1.5: 0.514, 2.0: 0.618, 3.0: 0.738}
+[23:27:48] tuned fixed: {'arb': {'alpha_const': 0.7}, 'infer': {'beta': 5.0}} (objective 0.731)
+[23:29:10] tuned confidence: {'arb': {}, 'infer': {'beta': 20.0}} (objective 0.828)
+[23:30:49] tuned hindsight: {'arb': {'ho_lambda': 1.0}, 'infer': {'beta': 5.0}} (objective 0.740)
+[23:31:33] tuned distance: {'arb': {'envelope': 0.15}, 'infer': {}} (objective 0.366)
+[23:32:26] tuned dasa: {'arb': {'gate_c0': 2.5}, 'infer': {}} (objective 0.939)
+[23:34:07] kappa 0.5 direct     success 0.00 wrong 0.00 T None share 1.00  [802s]
+[23:35:01] kappa 0.5 fixed      success 0.63 wrong 0.05 T 10.072105263157894 share 0.30  [856s]
+[23:36:14] kappa 0.5 distance   success 0.58 wrong 0.05 T 12.623428571428573 share 0.88  [928s]
+[23:37:12] kappa 0.5 confidence success 0.62 wrong 0.12 T 9.57945945945946 share 0.24  [987s]
+[23:38:59] kappa 0.5 hindsight  success 0.67 wrong 0.12 T 8.67 share 0.47  [1094s]
+[23:40:12] kappa 0.5 dasa       success 0.93 wrong 0.02 T 8.471785714285716 share 0.44  [1167s]
+[23:42:07] kappa 0.75 direct     success 0.00 wrong 0.00 T None share 1.00  [1282s]
+[23:43:06] kappa 0.75 fixed      success 0.75 wrong 0.00 T 7.7204444444444436 share 0.29  [1340s]
+[23:43:51] kappa 0.75 distance   success 0.97 wrong 0.02 T 9.176551724137932 share 0.77  [1386s]
+[23:44:31] kappa 0.75 confidence success 0.87 wrong 0.03 T 8.806153846153846 share 0.24  [1426s]
+[23:45:20] kappa 0.75 hindsight  success 0.85 wrong 0.03 T 6.758823529411766 share 0.49  [1475s]
+[23:45:44] kappa 0.75 dasa       success 1.00 wrong 0.00 T 5.610000000000001 share 0.34  [1499s]
+[23:46:48] kappa 1.0 direct     success 0.02 wrong 0.00 T 18.98 share 1.00  [1563s]
+[23:47:17] kappa 1.0 fixed      success 0.88 wrong 0.02 T 6.8675471698113215 share 0.29  [1592s]
+[23:47:46] kappa 1.0 distance   success 1.00 wrong 0.00 T 8.349333333333332 share 0.76  [1620s]
+[23:48:11] kappa 1.0 confidence success 0.90 wrong 0.00 T 7.189999999999999 share 0.24  [1645s]
+[23:49:01] kappa 1.0 hindsight  success 0.90 wrong 0.02 T 6.834814814814815 share 0.49  [1696s]
+[23:49:29] kappa 1.0 dasa       success 1.00 wrong 0.00 T 5.161333333333333 share 0.29  [1724s]
+[23:50:27] kappa 1.5 direct     success 0.23 wrong 0.00 T 10.535714285714288 share 1.00  [1782s]
+[23:50:49] kappa 1.5 fixed      success 0.98 wrong 0.00 T 5.981016949152543 share 0.28  [1804s]
+[23:51:18] kappa 1.5 distance   success 1.00 wrong 0.00 T 5.953666666666667 share 0.70  [1833s]
+[23:51:46] kappa 1.5 confidence success 1.00 wrong 0.00 T 5.527333333333333 share 0.23  [1861s]
+[23:52:21] kappa 1.5 hindsight  success 1.00 wrong 0.00 T 5.525 share 0.52  [1896s]
+[23:52:43] kappa 1.5 dasa       success 1.00 wrong 0.00 T 4.415666666666667 share 0.26  [1918s]
+[23:53:26] kappa 2.0 direct     success 0.72 wrong 0.00 T 11.32372093023256 share 1.00  [1961s]
+[23:53:43] kappa 2.0 fixed      success 0.98 wrong 0.00 T 4.6532203389830515 share 0.27  [1978s]
+[23:54:03] kappa 2.0 distance   success 1.00 wrong 0.00 T 5.377666666666667 share 0.68  [1998s]
+[23:54:24] kappa 2.0 confidence success 1.00 wrong 0.00 T 4.820666666666667 share 0.23  [2019s]
+[23:54:53] kappa 2.0 hindsight  success 1.00 wrong 0.00 T 4.505333333333334 share 0.55  [2048s]
+[23:55:16] kappa 2.0 dasa       success 1.00 wrong 0.00 T 4.287999999999999 share 0.23  [2071s]
+[23:55:47] kappa 3.0 direct     success 1.00 wrong 0.00 T 8.576 share 1.00  [2101s]
+[23:56:04] kappa 3.0 fixed      success 1.00 wrong 0.00 T 4.315 share 0.25  [2119s]
+[23:56:24] kappa 3.0 distance   success 1.00 wrong 0.00 T 5.1303333333333345 share 0.67  [2139s]
+[23:56:40] kappa 3.0 confidence success 1.00 wrong 0.00 T 4.349 share 0.21  [2155s]
+[23:57:03] kappa 3.0 hindsight  success 1.00 wrong 0.00 T 4.057666666666667 share 0.58  [2178s]
+[23:57:24] kappa 3.0 dasa       success 1.00 wrong 0.00 T 4.231333333333333 share 0.20  [2199s]
+[23:58:35] change-of-mind direct     success 0.05 wrong 0.00 yield 3.24
+[23:59:16] change-of-mind fixed      success 0.88 wrong 0.07 yield 2.66
+[23:59:48] change-of-mind distance   success 0.47 wrong 0.45 yield 3.0
+[00:00:13] change-of-mind confidence success 0.92 wrong 0.07 yield 2.2600000000000002
+[00:00:48] change-of-mind hindsight  success 0.68 wrong 0.23 yield 2.6100000000000003
+[00:01:17] change-of-mind dasa       success 1.00 wrong 0.00 yield 0.73
+[00:02:03] clutter direct     success 0.05 wrong 0.00 T 14.200000000000003
+[00:02:33] clutter fixed      success 0.75 wrong 0.02 T 8.914222222222223
+[00:02:52] clutter distance   success 0.93 wrong 0.07 T 7.589642857142857
+[00:03:19] clutter confidence success 0.78 wrong 0.02 T 8.194042553191489
+[00:04:21] clutter hindsight  success 0.70 wrong 0.02 T 6.59904761904762
+[00:04:57] clutter dasa       success 1.00 wrong 0.00 T 5.024666666666666
+[00:07:25] authority dasa       alpha_max=0.4: success 0.90 share 0.65 T 9.486296296296295
+[00:08:28] authority dasa       alpha_max=0.6: success 1.00 share 0.49 T 6.6674999999999995
+[00:09:08] authority dasa       alpha_max=0.8: success 1.00 share 0.32 T 5.093000000000001
+[00:09:45] authority dasa       alpha_max=0.95: success 1.00 share 0.21 T 4.657
+[00:11:25] authority confidence alpha_max=0.4: success 0.36 share 0.58 T 10.15906976744186
+[00:12:36] authority confidence alpha_max=0.6: success 0.64 share 0.42 T 7.943896103896105
+[00:13:25] authority confidence alpha_max=0.8: success 0.84 share 0.25 T 7.657227722772277
+[00:14:01] authority confidence alpha_max=0.95: success 0.87 share 0.11 T 7.1657692307692304
+[00:15:26] authority fixed      alpha_const=0.3: success 0.20 share 0.65 T 9.22
+[00:16:51] authority fixed      alpha_const=0.5: success 0.57 share 0.47 T 9.721470588235293
+[00:16:51] authority fixed      alpha_const=0.7: success 0.82 share 0.29 T 7.807346938775511
+[00:17:49] authority fixed      alpha_const=0.9: success 0.86 share 0.10 T 7.733203883495145
+[00:21:03] authority hindsight  ho_lambda=5.0: success 0.47 share 0.58 T 7.8225
+[00:21:03] authority hindsight  ho_lambda=1.0: success 0.80 share 0.50 T 6.7316666666666665
+[00:23:16] authority hindsight  ho_lambda=0.2: success 0.82 share 0.48 T 7.691919191919193
+[00:25:28] authority hindsight  ho_lambda=0.05: success 0.83 share 0.48 T 7.7446
+[00:28:27] re-tuned beta for confidence+switching: 5.0
+[00:28:27] ablation k=1.0 dasa                         std 1.00 com 1.00 (wrong 0.00) clutter 1.00
+[00:30:03] ablation k=0.5 dasa                         std 0.93 com 0.85 (wrong 0.10) clutter 0.87
+[00:31:12] ablation k=1.0 no_gate                      std 1.00 com 1.00 (wrong 0.00) clutter 1.00
+[00:33:07] ablation k=0.5 no_gate                      std 0.95 com 0.73 (wrong 0.12) clutter 0.87
+[00:34:38] ablation k=1.0 no_switching_prior           std 1.00 com 0.97 (wrong 0.03) clutter 1.00
+[00:36:56] ablation k=0.5 no_switching_prior           std 0.93 com 0.75 (wrong 0.20) clutter 0.88
+[00:39:16] ablation k=1.0 no_autocorr_correction       std 1.00 com 0.98 (wrong 0.00) clutter 0.97
+[01:17:22] ablation k=0.5 no_autocorr_correction       std 0.70 com 0.47 (wrong 0.00) clutter 0.27
+[01:22:04] ablation k=1.0 uncalibrated_error_model     std 1.00 com 1.00 (wrong 0.00) clutter 1.00
+[01:41:31] ablation k=0.5 uncalibrated_error_model     std 0.77 com 0.63 (wrong 0.02) clutter 0.68
+[01:51:03] ablation k=1.0 mismatched_user_model        std 1.00 com 0.98 (wrong 0.00) clutter 1.00
+[02:15:02] ablation k=0.5 mismatched_user_model        std 0.83 com 0.80 (wrong 0.02) clutter 0.63
+[02:24:03] ablation k=1.0 confidence+switching         std 0.10 com 0.03 (wrong 0.00) clutter 0.07
+[03:23:20] ablation k=0.5 confidence+switching         std 0.00 com 0.02 (wrong 0.00) clutter 0.02
+[03:31:54] ablation k=1.0 confidence+switching_retuned std 0.30 com 0.35 (wrong 0.00) clutter 0.20
+[03:40:50] ablation k=0.5 confidence+switching_retuned std 0.02 com 0.02 (wrong 0.00) clutter 0.00
+[03:41:35] wrote closed_loop_metrics.json and closed_loop_showcase.json
