@@ -94,7 +94,8 @@ Three facts from the clinical literature shape the design:
 | Pandarinath et al. 2018, *Nat Methods* (LFADS) | Session "stitching" through per-session read-in matrices onto shared latent dynamics. | Per-day read-ins in the proposed model |
 | Ye & Pandarinath 2021, *NBDT* (NDT); Ye et al. 2023, NeurIPS (NDT2); Azabou et al. 2023, NeurIPS (POYO); Ye et al. 2025, NeurIPS (NDT3) | Transformer decoders pretrained across sessions, adapted few-shot through context tokens or unit embeddings. NDT2 is the strongest published FALCON H1 baseline. | Causal-Transformer ablation; "re-learn only the input layer" adaptation |
 | Deo et al. 2024, *Sci Rep* | RNN decoders for bimanual control; time-warp augmentation. | Background |
-| Degenhart et al. 2020; Karpowicz et al. 2025 (NoMAD); Wilson et al. 2025, *Nat Biomed Eng*; Fan et al. 2023, NeurIPS (CORP) | Unsupervised and pseudo-label recalibration. | Unsupervised per-day normalisation baseline; discussed |
+| Degenhart et al. 2020; Karpowicz et al. 2025 (NoMAD); Wilson et al. 2025, *Nat Biomed Eng*; Fan et al. 2023, NeurIPS (CORP) | Unsupervised and pseudo-label recalibration. Degenhart aligns low-dimensional factor spaces of a new day to a reference (using stable channels); NoMAD trains an alignment network so the new day's latent-dynamics distribution matches the reference's by minimising a KL divergence between Gaussian approximations. | Per-day normalisation baseline; **label-free read-in alignment** (latent re-centring, CORAL moment matching, and NoMAD-style Gaussian-KL alignment of read-in output and core states) |
+| Sun & Saenko 2016, ECCV Workshops (Deep CORAL) | Domain adaptation by matching second-order statistics (means and covariances) of features across domains. | Closed-form moment matching of the read-in output |
 
 ## 4. Shared autonomy
 
@@ -197,3 +198,18 @@ in which the cued kinematics are replayed.
   al. 2025), Downey's and Muelling's safety threshold, and Dragan's "timid when wrong".
   What we contribute is combining them, and calibrating the inference against the
   decoder's actual error statistics.
+
+## 5. Statistics added in the improvement round
+
+- **Percentile bootstrap** (Efron & Tibshirani 1993, *An Introduction to the Bootstrap*):
+  95% CIs of mean R² resample test blocks (13 minival blocks) or held-out days (7).
+- **Moving-block bootstrap** (Künsch 1989, *Annals of Statistics* 17(3):1217-1241): replays
+  real decoder residuals in contiguous 2 s blocks so their autocorrelation is kept; used
+  to drive the closed loop with real FALCON H1 decoder errors.
+- **Exact paired tests:** sign-flip permutation on per-block differences for decoders;
+  exact McNemar on paired episodes for shared autonomy (unchanged).
+
+> Verification note: this round ran without network access, so the three new entries
+> (Sun & Saenko 2016, DOI 10.1007/978-3-319-49409-8_35; Künsch 1989, DOI
+> 10.1214/aos/1176347265; Efron & Tibshirani 1993) were not re-checked online. Their
+> bibliographic details should be confirmed against Crossref before publication.

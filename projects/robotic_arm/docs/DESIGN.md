@@ -50,8 +50,10 @@ flowchart LR
 | `robotic_arm/data.py` | Reads the NWB files and bins spikes with FALCON's exact convention, where bin *i* covers `(t_i − 20 ms, t_i]`. Caches all 40 blocks in one `h1_binned.npz` (15 MB). Defines the splits, causal smoothing, lag features and normalisers. |
 | `robotic_arm/metrics.py` | FALCON's variance-weighted R², per-DoF R² and path efficiency. |
 | `robotic_arm/decoders/linear.py` | Wiener filter (ridge on strided lag taps), plus a grid search that reuses one Gram matrix and incremental sufficient statistics for pooled refits. Velocity Kalman filter with a steady-state gain and an optional leaky transition. |
-| `robotic_arm/decoders/neural.py` | `SeqDecoder`: per-day linear read-ins, a GRU or causal-Transformer core, and a linear readout. Also nonstationarity augmentation (gain, offset, channel dropout), masked-MSE training with early stopping, few-shot read-in-only recalibration (core frozen, L2-anchored to the mean read-in), and full fine-tuning. |
-| `robotic_arm/run_decoding.py` | The offline experiments: within-session, cross-session zero-shot and few-shot. |
+| `robotic_arm/decoders/neural.py` | `SeqDecoder`: per-day linear read-ins, a GRU or causal-Transformer core, and a linear readout. Also nonstationarity augmentation (gain, offset, channel dropout), masked-MSE training with early stopping, few-shot read-in-only recalibration (core frozen, L2-anchored to the mean read-in), full fine-tuning, and **label-free read-in alignment**: closed-form latent moment matching (`align_readin_moments`, CORAL) and NoMAD-style Gaussian-KL alignment of read-in output and core states (`align_readin_kl`). |
+| `robotic_arm/run_decoding.py` | The offline experiments: within-session, cross-session zero-shot, label-free and few-shot. One process per (variant, seed) via `--parts`/`--seeds`; raw per-seed runs (`neural_runs`) are aggregated at `--merge`. Checkpoints go to `results/checkpoints/`. |
+| `robotic_arm/stats.py` | Percentile bootstrap 95% CIs over test blocks/days, exact paired sign-flip permutation tests, and the `paired_tests` table of the main decoder comparisons. |
+| `robotic_arm/residuals.py` | Real-decoder noise for the closed loop: a causal FIR from intended to decoded velocity fitted to real held-out H1 predictions, plus a moving-block bootstrap of the real residuals, optionally re-scaled by a fitted speed-dependent error scale. `OnlineResidualDecoder` streams it. |
 | `robotic_arm/encoding.py` | Poisson GLM `log λ = b + C v + σ L f`, with `L` taken from the principal axes of residual activity and `f` an AR(1) latent. Has a streaming encoder for the closed loop. |
 | `robotic_arm/arm.py` | Kinova Gen3 classical DH forward kinematics, geometric Jacobian, damped-least-squares resolved-rate control (tool-down orientation task plus yaw, null-space posture), and the safety filter. |
 | `robotic_arm/task.py` | Tabletop scene, grasp rule, mapping between the decoded 7-D space and the 5-D command space, the goal-directed reach policy, and the simulated user (delay, noise, change of mind). |
@@ -100,6 +102,26 @@ of the same blocks.
   from the mean read-in (zero-shot) or gets a new read-in fitted on *k* s with the core
   frozen. Ablations: no augmentation, and fine-tuning everything.
 
+**Label-free recalibration (no labels from the new day).** Only block A's neural data are
+used. Variants, all evaluated on block B of the 7 held-out days, 3 seeds:
+- `zs_fixednorm`: no per-day re-normalisation (training-pooled z-scores), the ablation;
+- `zeroshot`: per-channel re-centring/re-scaling to block A (the existing default);
+- `unsup_center`: + re-centring of the read-in output to the held-in latent mean;
+- `unsup_coral`: + closed-form mean and covariance matching of the read-in output
+  (`u' = S_ref^{1/2} S_new^{-1/2} (u - mu_new) + mu_ref`, covariances shrunk 10% to the
+  diagonal), which stays an affine read-in;
+- `unsup_kl`: starting from CORAL, train only the read-in to minimise
+  `KL(N_new || N_ref)` for both read-in output and GRU/Transformer core states, anchored.
+The reference distribution pools all six held-in days, each through its own read-in. The
+hyper-parameters (shrinkage 0.1, 150 Adam steps, lr 2e-3, anchor 0.01) were fixed a
+priori and not tuned on the held-out days.
+
+**Uncertainty.** Every neural decoder is trained with 3 seeds (`ms_gru_noaug` is a
+single-seed ablation). Per-block R² is averaged over seeds, then a percentile bootstrap
+over blocks (13 minival blocks, or 7 held-out days) gives `r2_vw_ci95`. Main comparisons
+are paired over the same blocks with an exact sign-flip permutation test
+(`paired_tests`; with 7 days the smallest possible two-sided p is 2/128 = 0.016).
+
 ### Closed loop (`run_closed_loop.py`)
 
 1. **Fit the encoding model** on day 1925-01-20 (two blocks, 409 s after removing minival): a Poisson GLM
@@ -125,11 +147,34 @@ of the same blocks.
    objective `success − wrong − 0.01·time`. The main runs use paired scenes and seeds
    across methods, so exact McNemar tests apply.
 
+### Closed loop driven by real decoder errors (`--real-residuals`)
+
+The synthetic closed loop matches the real decoder only in offline R². The real-residual
+mode replaces encoder + Wiener filter by an empirical model of a *real* decoder:
+`z_hat_t = sum_k H_k z_{t-k} + b + s(|z_t|) r_t`.
+- `H` (15 taps, 300 ms) is ridge-fitted from cued to decoded velocity on real FALCON H1
+  predictions, so the decoder's shrinkage, lag and cross-talk are the real ones.
+- `r_t` is a moving-block bootstrap (2 s blocks, never crossing an eval-mask gap) of the
+  real residuals `z_hat - H*z`, keeping their autocorrelation and cross-DoF covariance.
+- `s_d(|z|) = a_d + c_d |z_d|` is a fitted speed-dependent error scale; residuals are
+  standardised by it and re-scaled by the simulated user's current intent
+  (`conditioned: false` replays the raw residuals).
+- Sources: the real Wiener filter on held-in minival (primary; the decoder whose R² the
+  synthetic nominal level was matched to), the same with a raw bootstrap, the multi-day
+  GRU on minival, and the zero-shot Wiener filter on the held-out days.
+- The same partial gain correction and the same DASA error-model calibration (G, Σ, τ
+  measured on a simulated replay of real cued kinematics) are used as in the synthetic
+  loop. Every method is **re-tuned** under the primary real-residual noise on separate
+  seeds, then standard, change-of-mind and clutter are run with paired episodes and exact
+  McNemar tests. Results go to `closed_loop_real_metrics.json`; the synthetic results and
+  keys are unchanged.
+
 ### Running on a shared machine
 
-- **Decoders run in parts.** `run_decoding.py --parts linear` and `--parts <variant>`
-  write `results/decoding_parts/*.json`, and `--merge` combines them.
-  `scripts/run_cpu.sh` runs the parts `MAX_PAR` at a time.
+- **Decoders run in parts.** `run_decoding.py --parts linear` and `--parts <variant> --seeds <s>`
+  write `results/decoding_parts/*.json`, and `--merge` re-aggregates the raw per-seed runs
+  and adds CIs and paired tests. `scripts/run_cpu.sh` runs the parts `MAX_PAR` (default 1)
+  at a time.
 - **Closed-loop episodes are cached.** Every finished episode is cached, keyed by a hash
   of its full specification, in `results/closed_loop_cache.jsonl`, so `--resume`
   restarts where an interrupted run stopped.
@@ -219,6 +264,16 @@ Run `pytest tests` (about 1 minute; synthetic data only, so no download is neede
   - goal inference concentrates on the goal and can switch;
   - the arbitration weights behave as expected (Downey's constants);
   - a full closed-loop episode with a good decoder succeeds.
+- **Label-free recalibration** (`test_recal_stats.py`): CORAL matches the reference
+  latent mean and covariance exactly on a drifted synthetic day; mean-only re-centring
+  keeps the weights; Gaussian KL is zero for identical distributions; KL alignment
+  lowers the core-state divergence and leaves the core frozen.
+- **Statistics:** bootstrap CI brackets the mean; exact sign-flip p = 2/128 for 7 positive
+  differences; `add_decoding_stats` adds CIs and paired tests.
+- **Real residuals** (`test_residuals.py`): the FIR recovers a known gain and lag and the
+  speed dependence; the block bootstrap keeps residual scale and autocorrelation time;
+  blocks never cross masked gaps; the streaming decoder equals the batch simulation;
+  residual calibration yields a valid error model.
 - **End-to-end:** `scripts/run_cpu.sh configs/smoke.yaml` runs the whole pipeline in
   minutes.
 
@@ -239,5 +294,13 @@ Run `pytest tests` (about 1 minute; synthetic data only, so no download is neede
   link-table only, not link-object or self-collision.
 - **Cross-session protocol.** Ours is not FALCON's private split. We have only 7
   held-out days, and the test blocks are short (about 50 s, 3 trials each).
-- **CPU scale.** Neural decoders are small (a 1-layer GRU with 192 units, 1200 steps, 2 seeds).
-  `configs/gpu.yaml` scales them up.
+- **CPU scale.** Neural decoders are small (a 1-layer GRU with 192 units, 1200 steps, 3 seeds).
+  `configs/gpu.yaml` scales them up (5 seeds).
+- **Real-residual closed loop.** The residuals are real, but they are errors relative to
+  *cued* velocity in open-loop calibration blocks, replayed against a *simulated* user's
+  intent. Closed-loop decoder errors can differ (users correct errors, intent differs from
+  the cue), and the residuals are additive given the FIR, so any error that depends on
+  the closed-loop state beyond speed is not modelled. The held-out residual pool is short
+  (7 test blocks of about 50 s).
+- **Few test units.** CIs over 7 held-out days are wide, and the sign-flip test cannot go
+  below p = 0.016 with 7 days.
