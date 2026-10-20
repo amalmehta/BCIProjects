@@ -12,7 +12,11 @@ HERE = Path(__file__).resolve().parent
 M = json.loads((HERE.parent / "results" / "metrics.json").read_text())
 
 ORDER = ["intensity_uncalibrated", "intensity", "edge", "salient_edge", "learned", "learned_adapted",
-         "per_image_optimisation"]
+         "learned_dropout_aug", "learned_threshold_aware_noaug", "learned_threshold_aware",
+         "learned_threshold_aware_noisy_thresholds", "per_image_optimisation"]
+ROB_ORDER = ["intensity", "edge", "learned", "learned_adapted", "learned_dropout_aug", "learned_threshold_aware_noaug",
+             "learned_threshold_aware"]
+V1 = M.get("v1_dynaphos_thresholds", {})
 LABEL = M["encoder_labels"]
 DS_LABEL = {"mnist": "MNIST digits", "letters": "EMNIST letters", "cifar": "CIFAR-10 (grayscale)"}
 VARIANT_LABEL = {"main": "Full objective (threads, 1024)", "no_percept_loss": "No percept loss",
@@ -54,18 +58,23 @@ def main_table() -> str:
                 cells.append(c)
             cells.append(f"{r['active_electrodes']:.0f}")
             cells.append(f"{r['charge_nc_per_phase'] / 1000:.2f}")
+            sub = r.get("frac_active_subthreshold")
+            cells.append("--" if sub is None else f"{100 * sub:.0f}")
             rows.append(f"{LABEL[e]} & " + " & ".join(cells) + r" \\")
-        out.append(f"\\midrule\n\\multicolumn{{7}}{{l}}{{\\textit{{{DS_LABEL[d]}}} "
+        out.append(f"\\midrule\n\\multicolumn{{8}}{{l}}{{\\textit{{{DS_LABEL[d]}}} "
                    f"(classifier on original images: {block['image_ceiling_acc']:.3f})}}\\\\\n" + "\n".join(rows))
     return ("\\begin{table*}[t]\n\\centering\\small\n"
             "\\caption{Main results on five held-out simulated patients (threads layout, 1024 sites). "
             "Learned rows: mean $\\pm$ std over three training seeds. SSIM/PSNR compare the percept with the input; "
             "low-pass SSIM blurs both by $\\sigma=0.375^\\circ$ first. Accuracy is that of a CNN trained on each "
             "encoder's percepts. Charge is the summed charge per phase over all active electrodes (\\textmu C). "
+            "Sub-thr.\\ is the share of active currents at or below the patient's true detection threshold (no phosphene). "
+            "Threshold-aware rows are told each patient's calibrated thresholds and dead electrodes; the "
+            "20\\% threshold error row is told thresholds with lognormal error (seed 0). "
             "Per-image optimisation is a slow, non-causal reference (128 images per patient, no classifier). "
-            "Best causal encoder in bold.}\n\\label{tab:main}\n"
-            "\\begin{tabular}{lcccccc}\n\\toprule\n"
-            "Encoder & SSIM & Low-pass SSIM & PSNR (dB) & Accuracy & Active el. & Charge (\\textmu C) \\\\\n"
+            "Best causal encoder in bold. Recalibrated simulator (Fern\\'andez thresholds).}\n\\label{tab:main}\n"
+            "\\setlength{\\tabcolsep}{4pt}\\begin{tabular}{lccccccc}\n\\toprule\n"
+            "Encoder & SSIM & Low-pass SSIM & PSNR (dB) & Accuracy & Active el. & Charge (\\textmu C) & Sub-thr.\\ (\\%) \\\\\n"
             + "\n".join(out) + "\n\\bottomrule\n\\end{tabular}\n\\end{table*}\n")
 
 
@@ -75,16 +84,77 @@ def robustness_table() -> str:
     head1 = " & ".join(f"\\multicolumn{{{len(levels)}}}{{c}}{{{DS_LABEL[d]}}}" for d in ds)
     rules = " ".join(f"\\cmidrule(lr){{{2 + i * len(levels)}-{1 + (i + 1) * len(levels)}}}" for i in range(len(ds)))
     head2 = " & ".join(f"{100 * float(lv):.0f}\\%" for _ in ds for lv in levels)
-    rows = []
-    for e in ORDER:
-        if not all(e in M["robustness"][d] for d in ds):
+    blocks = []
+    for src, title in (("robustness", "Unannounced failures"), ("robustness_known_dead", "Known-dead (masked before the safety layer)")):
+        if src not in M:
             continue
-        cells = " & ".join(f"{M['robustness'][d][e][lv]['acc']:.3f}" for d in ds for lv in levels)
-        rows.append(f"{LABEL[e]} & {cells} \\\\")
-    return ("\\begin{table*}[t]\n\\centering\\small\\setlength{\\tabcolsep}{4pt}\n\\caption{Recognition accuracy after additional, unannounced "
-            "electrode failures (0\\% = intact implant; encoders and classifiers are not recalibrated or retrained).}\n"
+        rows = [f"\\multicolumn{{{1 + len(levels) * len(ds)}}}{{l}}{{\\textit{{{title}}}}}\\\\"]
+        for e in ROB_ORDER:
+            if not all(e in M[src].get(d, {}) for d in ds):
+                continue
+            cells = " & ".join(f"{M[src][d][e][lv]['acc']:.3f}" for d in ds for lv in levels)
+            rows.append(f"{LABEL[e]} & {cells} \\\\")
+        blocks.append("\n".join(rows))
+    return ("\\begin{table*}[t]\n\\centering\\small\\setlength{\\tabcolsep}{4pt}\n\\caption{Recognition accuracy after additional "
+            "electrode failures (0\\% = intact implant; classifiers are not retrained). Unannounced: encoders keep the intact "
+            "calibration. Known-dead: failed electrodes are zeroed before the safety layer, so the active-electrode budget goes "
+            "to working ones, and the threshold-aware encoders are told which electrodes failed. Learned rows: mean over seeds.}\n"
             "\\label{tab:dropout}\n\\begin{tabular}{l" + "c" * (len(levels) * len(ds)) + "}\n\\toprule\n"
-            f"& {head1} \\\\\n{rules}\nEncoder & {head2} \\\\\n\\midrule\n" + "\n".join(rows)
+            f"& {head1} \\\\\n{rules}\nEncoder & {head2} \\\\\n\\midrule\n" + "\n\\midrule\n".join(blocks)
+            + "\n\\bottomrule\n\\end{tabular}\n\\end{table*}\n")
+
+
+def temporal_table() -> str:
+    t = M.get("temporal")
+    if not t:
+        return ""
+    names = [("intensity", "Intensity, frame by frame"), ("learned", "Learned generic, frame by frame"),
+             ("learned_threshold_aware", "Threshold-aware, frame by frame"),
+             ("threshold_aware_compensated", "Threshold-aware + trace compensation"),
+             ("learned_temporal", "Temporal encoder (BPTT)")]
+    cols = [(d, mode) for d in t for mode in ("static", "moving")]
+    head = " & ".join(f"\\multicolumn{{3}}{{c}}{{{DS_LABEL[d].split(' ')[0]} {mode}}}" for d, mode in cols)
+    rules = " ".join(f"\\cmidrule(lr){{{2 + 3 * i}-{4 + 3 * i}}}" for i in range(len(cols)))
+    sub = " & ".join("mean & last & nC" for _ in cols)
+    rows = []
+    for k, lab in names:
+        cells = []
+        for d, mode in cols:
+            r = t[d]["modes"][mode][k]
+            cells += [f"{r['mean']['ssim_lowpass']:.3f}", f"{r['last']['ssim_lowpass']:.3f}", f"{r['mean']['charge_nc']:.0f}"]
+        rows.append(f"{lab} & " + " & ".join(cells) + " \\\\")
+    d0 = next(iter(t.values()))
+    return ("\\begin{table*}[t]\n\\centering\\small\\setlength{\\tabcolsep}{3.5pt}\n\\caption{Sequences under habituation: "
+            f"{d0['frames']} frames of {1000 * d0['frame_s']:.0f}\\,ms ({d0['frames'] * d0['frame_s']:.1f}\\,s), "
+            f"{d0['n_sequences']} sequences per condition over the five held-out patients, state starting from rest. "
+            "Low-pass SSIM between each frame's percept and that frame's image: mean over frames and at the last frame; "
+            "nC = mean summed charge per phase per frame. Moving: 1 px (0.19$^\\circ$) per frame in a random direction. "
+            "Encoders trained with seed 0.}\n\\label{tab:temporal}\n"
+            "\\begin{tabular}{l" + "c" * (3 * len(cols)) + "}\n\\toprule\n"
+            f"& {head} \\\\\n{rules}\nEncoder & {sub} \\\\\n\\midrule\n" + "\n".join(rows)
+            + "\n\\bottomrule\n\\end{tabular}\n\\end{table*}\n")
+
+
+def recal_table() -> str:
+    """Old (dynaphos thresholds) vs new (Fernandez-recalibrated) simulator, headline rows."""
+    if not V1:
+        return ""
+    rows = []
+    for d in M["main"]:
+        for e in ("intensity", "learned", "learned_adapted"):
+            o, n = V1["main"][d]["encoders"].get(e), M["main"][d]["encoders"].get(e)
+            if not (o and n):
+                continue
+            rows.append(f"{DS_LABEL[d].split(' ')[0]} & {LABEL[e]} & {o['ssim']:.3f} & {n['ssim']:.3f} & "
+                        f"{o['ssim_lowpass']:.3f} & {n['ssim_lowpass']:.3f} & {o['acc']:.3f} & {n['acc']:.3f} & "
+                        f"{o['charge_nc_per_phase'] / 1000:.2f} & {n['charge_nc_per_phase'] / 1000:.2f} \\\\")
+    return ("\\begin{table*}[t]\n\\centering\\small\\setlength{\\tabcolsep}{4pt}\n\\caption{Effect of recalibrating the "
+            "threshold distribution (old: dynaphos fit, 47$\\pm$15\\,\\textmu A; new: Fern\\'andez et al.\\ 2021, 66.8$\\pm$36.5\\,\\textmu A). "
+            "Each simulator's encoders are trained and evaluated under that simulator (same seeds, data and protocol).}\n"
+            "\\label{tab:recal}\n\\begin{tabular}{llcccccccc}\n\\toprule\n"
+            "& & \\multicolumn{2}{c}{SSIM} & \\multicolumn{2}{c}{Low-pass SSIM} & \\multicolumn{2}{c}{Accuracy} & "
+            "\\multicolumn{2}{c}{Charge (\\textmu C)} \\\\\n\\cmidrule(lr){3-4}\\cmidrule(lr){5-6}\\cmidrule(lr){7-8}\\cmidrule(lr){9-10}\n"
+            "Data & Encoder & old & new & old & new & old & new & old & new \\\\\n\\midrule\n" + "\n".join(rows)
             + "\n\\bottomrule\n\\end{tabular}\n\\end{table*}\n")
 
 
@@ -121,7 +191,15 @@ def macros() -> str:
     if v:
         s += macro("NumMagErr", f"{100 * v['magnification_max_rel_diff_0_to_10deg']:.1f}")
         s += macro("NumBrightRsq", f"{v['brightness_r2_vs_fernandez_fig6a']:.2f}")
+        if "brightness_r2_suprathreshold_vs_fig6a" in v:
+            s += macro("NumBrightRsqSupra", f"{v['brightness_r2_suprathreshold_vs_fig6a']:.2f}")
+            s += macro("NumBrightRsqPop", f"{v['brightness_r2_population_mean_vs_fig6a']:.2f}")
         t = v["threshold_current_ua"]
+        if "min" in t:
+            s += macro("NumThrMin", f"{t['min']:.1f}")
+            s += macro("NumThrAboveMaxPct", f"{100 * t['frac_above_max_current']:.0f}")
+            s += macro("NumThrPFive", f"{t['p5']:.0f}")
+            s += macro("NumThrPNinetyFive", f"{t['p95']:.0f}")
         s += macro("NumThrMean", f"{t['mean']:.1f}")
         s += macro("NumThrSd", f"{t['sd']:.1f}")
         h = v["habituation"]
@@ -135,7 +213,9 @@ def macros() -> str:
         s += macro("NumSizeFive", f"{d['80uA']['5deg']:.2f}")
     names = {"mnist": "Mnist", "letters": "Letters", "cifar": "Cifar"}
     keys = {"intensity": "Int", "intensity_uncalibrated": "IntUn", "edge": "Edge", "salient_edge": "Sal",
-            "learned": "Learn", "learned_adapted": "Adapt", "per_image_optimisation": "Oracle"}
+            "learned": "Learn", "learned_adapted": "Adapt", "per_image_optimisation": "Oracle",
+            "learned_threshold_aware": "Ta", "learned_threshold_aware_noaug": "TaNa", "learned_dropout_aug": "Da",
+            "learned_threshold_aware_noisy_thresholds": "TaNoisy"}
     for d, block in M["main"].items():
         s += macro(f"Num{names[d]}Ceil", f"{block['image_ceiling_acc']:.3f}")
         for e, k in keys.items():
@@ -147,10 +227,44 @@ def macros() -> str:
                     s += macro(f"Num{names[d]}{k}{short}", f"{r[met]:.3f}" if met != "psnr" else f"{r[met]:.2f}")
             s += macro(f"Num{names[d]}{k}Charge", f"{r['charge_nc_per_phase'] / 1000:.2f}")
             s += macro(f"Num{names[d]}{k}Active", f"{r['active_electrodes']:.0f}")
+            if r.get("frac_active_subthreshold") is not None:
+                s += macro(f"Num{names[d]}{k}SubPct", f"{100 * r['frac_active_subthreshold']:.1f}")
+                s += macro(f"Num{names[d]}{k}WastePct", f"{100 * r['wasted_charge_frac']:.1f}")
         rob = M["robustness"].get(d, {})
         for e, k in keys.items():
             if e in rob:
                 s += macro(f"Num{names[d]}{k}AccDropHalf", f"{rob[e]['0.5']['acc']:.3f}")
+                s += macro(f"Num{names[d]}{k}LpDropHalf", f"{rob[e]['0.5']['ssim_lowpass']:.3f}")
+        robk = M.get("robustness_known_dead", {}).get(d, {})
+        for e, k in keys.items():
+            if e in robk:
+                s += macro(f"Num{names[d]}{k}AccDropHalfKnown", f"{robk[e]['0.5']['acc']:.3f}")
+                s += macro(f"Num{names[d]}{k}LpDropHalfKnown", f"{robk[e]['0.5']['ssim_lowpass']:.3f}")
+        if V1 and d in V1.get("main", {}):
+            for e, k in (("intensity", "Int"), ("learned", "Learn"), ("learned_adapted", "Adapt")):
+                r = V1["main"][d]["encoders"][e]
+                for met, short in (("acc", "Acc"), ("ssim_lowpass", "Lp"), ("ssim", "Ssim")):
+                    s += macro(f"NumVOne{names[d]}{k}{short}", f"{r[met]:.3f}")
+                s += macro(f"NumVOne{names[d]}{k}Charge", f"{r['charge_nc_per_phase'] / 1000:.2f}")
+                vr = V1["robustness"][d].get(e)
+                if vr:
+                    s += macro(f"NumVOne{names[d]}{k}AccDropHalf", f"{vr['0.5']['acc']:.3f}")
+    if V1.get("simulator_validation"):
+        ov = V1["simulator_validation"]
+        s += macro("NumVOneThrMean", f"{ov['threshold_current_ua']['mean']:.1f}")
+        s += macro("NumVOneThrSd", f"{ov['threshold_current_ua']['sd']:.1f}")
+        s += macro("NumVOneBrightRsq", f"{ov['brightness_r2_vs_fernandez_fig6a']:.2f}")
+    tnames = {"intensity": "Int", "learned": "Learn", "learned_threshold_aware": "Ta",
+              "threshold_aware_compensated": "Comp", "learned_temporal": "Tmp"}
+    for d, td in M.get("temporal", {}).items():
+        for mode, mk in (("static", "Static"), ("moving", "Moving")):
+            for e, k in tnames.items():
+                r = td["modes"][mode][e]
+                s += macro(f"NumT{names[d]}{mk}{k}LpMean", f"{r['mean']['ssim_lowpass']:.3f}")
+                s += macro(f"NumT{names[d]}{mk}{k}LpLast", f"{r['last']['ssim_lowpass']:.3f}")
+                s += macro(f"NumT{names[d]}{mk}{k}LpFirst", f"{r['ssim_lowpass'][0]:.3f}")
+                s += macro(f"NumT{names[d]}{mk}{k}Charge", f"{r['mean']['charge_nc'] / 1000:.2f}")
+                s += macro(f"NumT{names[d]}{mk}{k}WastePct", f"{100 * r['mean']['wasted_frac']:.0f}")
     saves = [1 - b["encoders"]["learned"]["charge_nc_per_phase"] / b["encoders"]["intensity"]["charge_nc_per_phase"]
              for b in M["main"].values()]
     s += macro("NumChargeSaveMin", f"{100 * min(saves):.0f}")
@@ -186,5 +300,7 @@ if __name__ == "__main__":
     text += "\\newcommand{\\GenMainTable}{%\n" + main_table() + "}\n"
     text += "\\newcommand{\\GenDropoutTable}{%\n" + robustness_table() + "}\n"
     text += "\\newcommand{\\GenAblationTable}{%\n" + ablation_table() + "}\n"
+    text += "\\newcommand{\\GenTemporalTable}{%\n" + temporal_table() + "}\n"
+    text += "\\newcommand{\\GenRecalTable}{%\n" + recal_table() + "}\n"
     (HERE / "generated.tex").write_text(text)
     print(f"wrote {HERE / 'generated.tex'} ({len(text)} chars)")
