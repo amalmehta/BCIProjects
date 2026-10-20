@@ -124,10 +124,16 @@ spikes, except for the first $N$ reaches in the few-shot condition.
 \section{Methods}
 \subsection{Baselines}
 \textbf{Wiener filter}: ridge regression from 10 bins (200\,ms) of z-scored counts to
-velocity. \textbf{Kalman filter}: velocity state, linear-Gaussian observation of causally
-smoothed counts, steady-state gain; smoothing window and an observation-noise scale tuned on
-validation. Both are fit per day (within-day reference) and on all five calibration days
-(the deployed version). \textbf{FA stabiliser} after Degenhart et al.\ \cite{degenhart2020stabilization}:
+velocity. \textbf{Kalman filter} (strong baseline, ``PVA''): the kinematic state of Wu et al.\ and
+ReFIT-KF~\cite{wu2006kalman,gilja2012refit}, position, velocity and acceleration, with
+$\mathbf{x}_t=A\mathbf{x}_{t-1}+\mathbf{w}$ and $\mathbf{z}_t=H\mathbf{x}_t+\mathbf{d}+\mathbf{q}$,
+where $\mathbf{z}_t$ are z-scored counts averaged over a causal window (an effective bin width,
+updated every 20\,ms) taken an optional extra lead in the past, optionally square-root
+transformed; all matrices by least squares, steady-state gain. Bin width, lead, state order,
+square root and an observation-noise scale are tuned on calibration validation data
+(\kfSmooth\,ms window, \kfOrder{} state, \kfSqrt{} square root, extra lead \kfDelay\,ms). The
+previous round's velocity-only filter (``Kalman v1'') is kept for reference.
+\textbf{FA stabiliser} after Degenhart et al.\ \cite{degenhart2020stabilization}:
 10-factor FA on calibration days, ridge decoder on lagged factors; on a new day FA is refit
 without labels, the 60\,\% of channels whose loadings agree best are found iteratively, and
 an orthogonal Procrustes map aligns the new factors. \textbf{GRU}: input layer, one GRU layer
@@ -226,9 +232,39 @@ For each decoder, the cursor gain $\{0.75,1,1.5\}$, exponential velocity smoothi
 the user's hold time $\{0.1,0.25\}$\,s are tuned on two separate 30\,s sessions and frozen.
 The oracle moves the cursor with the true intention at the same latency as a decoder.
 
-\paragraph{ReFIT in simulation.} For the linear decoders we also run 120\,s of closed-loop use,
-relabel the intended velocity by rotating the decoded velocity toward the target (zero on the
-target)~\cite{gilja2012refit}, refit, re-tune and re-evaluate.
+\paragraph{Paired sessions and statistics.} The simulator is vectorised over sessions, so each
+decoder is evaluated on \nSimSessions{} sessions of 60\,s. Sessions use common random numbers:
+for a given seed the target sequence, latent neural noise, motor noise and click randomness are
+identical for every decoder, so comparisons are paired. We report means with percentile-bootstrap
+95\,\% CIs~\cite{efron1993bootstrap}, two-sided Wilcoxon signed-rank tests on the paired
+differences~\cite{wilcoxon1945} and Holm's correction over all decoder pairs~\cite{holm1979}.
+Tuning uses separate seeds.
+
+\paragraph{ReFIT and closed-loop adaptation in simulation.} For the linear decoders we run 120\,s
+of closed-loop use, relabel the intended velocity by rotating the decoded velocity toward the
+target (zero on the target)~\cite{gilja2012refit}, refit, re-tune and re-evaluate. For the
+neural decoders we repeat the same loop for \cldaRounds{} rounds of \cldaSessions{} 60\,s
+sessions, accumulating re-labelled data, in the spirit of closed-loop decoder
+adaptation~\cite{dangi2013clda,orsborn2014clda}: the GRU fine-tunes all weights with a small
+learning rate; SLD fine-tunes only the adapter of the simulated day (with an $L_2$ penalty to its
+starting value), or adapter plus velocity head as a variant. Half of each fine-tuning batch
+rehearses the day's offline calibration data so that offline accuracy is not erased. After every
+round gain, smoothing and hold are re-tuned. The linear decoders get the same multi-round
+schedule (re-fit from scratch on all re-labelled data).
+
+\subsection{Label-free channel re-matching}
+When the firing-rate check flags a day, we look for the channel correspondence without labels.
+Each channel gets a signature from the day's unlabelled spikes: log rate, log standard
+deviation, Fano factor at 20 and 100\,ms, and autocorrelation at 1, 2, 5 and 10 bins; the
+population gets a channel-by-channel correlation matrix of 100\,ms-smoothed counts. A candidate
+permutation is scored by the mean correlation of each permuted statistic with the calibration
+days' average plus the correlation between the permuted and the calibration correlation matrices.
+Because re-mappings caused by connectors or acquisition settings move contiguous groups of
+channels, we search a structured family of \remapCands{} block re-orderings (blocks of 1--48
+channels, cyclically shifted and/or reversed, optionally reversed inside each block), and keep the
+identity unless a candidate beats it by 0.1. An unstructured alternative refines the assignment
+with the Hungarian algorithm~\cite{kuhn1955hungarian} on per-channel statistics and correlation
+profiles. After re-matching, decoders are re-centred (and SLD optionally aligned) as usual.
 
 \section{Results}
 \input{results.tex}
