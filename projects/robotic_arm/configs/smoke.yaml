@@ -55,6 +55,7 @@ decoding:
     recal_anchor: 0.01
     ft_lr: 0.0005
     ablate_ft_all: true
+    unsup: {enabled: true, shrink: 0.1, kl_steps: 3, kl_lr: 0.002, kl_batch: 8, kl_anchor: 0.01, kl_w_h: 1.0}
 closed_loop:
   calib_day: '1925-01-20'
   latent_sigma: 0.3

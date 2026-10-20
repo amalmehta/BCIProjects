@@ -3,7 +3,7 @@ threads: 2
 
 decoding:
   val_frac: 0.15            # last 15% of each held-in calibration block = validation
-  seeds: [0, 1]             # 2 seeds for GRU and multi-day GRU on CPU (gpu.yaml: 5)
+  seeds: [0, 1, 2]          # 3 seeds for every neural decoder on CPU (gpu.yaml: 5)
   recal_seconds: [10, 20, 45]   # labelled seconds of the held-out recalibration block
   wiener:
     lags: [5, 10, 15]       # number of taps
@@ -17,7 +17,7 @@ decoding:
     decays: [null, 0.98, 0.95]   # null = least-squares A
   neural:
     variants: [gru, ms_gru, ms_gru_noaug, transformer]
-    multi_seed: [gru, ms_gru]
+    multi_seed: [gru, ms_gru, transformer]
     d_in: 64
     hidden: 192             # 1-layer GRU (CPU budget); gpu.yaml uses 2 x 512
     tf_hidden: 128
@@ -39,6 +39,9 @@ decoding:
     recal_anchor: 0.01
     ft_lr: 0.0005
     ablate_ft_all: true
+    # label-free recalibration on each held-out day's unlabelled block A (improvement 9);
+    # hyper-parameters fixed a priori, not tuned on the held-out days
+    unsup: {enabled: true, shrink: 0.1, kl_steps: 150, kl_lr: 0.002, kl_batch: 24, kl_anchor: 0.01, kl_w_h: 1.0}
 
 closed_loop:
   calib_day: "1925-01-20"   # encoding model + simulated calibration use this real session

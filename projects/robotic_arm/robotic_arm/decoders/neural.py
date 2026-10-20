@@ -263,3 +263,164 @@ def finetune_all(model: SeqDecoder, zs, ys, ms, steps: int = 400, lr: float = 5e
         opt.step()
     m2.eval()
     return m2
+
+
+# --------------------------------------------------------------------------------------
+# Label-free (unsupervised) recalibration by latent-distribution alignment
+# --------------------------------------------------------------------------------------
+# A new day's read-in is adapted using only that day's *unlabelled* neural data, so that
+# the distribution of the latent factors it produces matches the distribution the frozen
+# core saw on the held-in days. Two estimators:
+#
+# * ``align_readin_moments``: closed-form second-order moment matching (CORAL, Sun &
+#   Saenko 2016) of the read-in output. Starting from the mean read-in u = W z + b, the
+#   new read-in is u' = A (u - mu_new) + mu_ref with A = S_ref^{1/2} S_new^{-1/2}, which
+#   is again affine in z.
+# * ``align_readin_kl``: gradient-based alignment of Gaussian approximations of the
+#   read-in output *and* the core's hidden-state distribution, minimising
+#   KL(N_new || N_ref) as in NoMAD (Karpowicz et al. 2025), L2-anchored to the start.
+
+
+@dataclass
+class LatentStats:
+    """Mean and covariance of read-in outputs (``u``) and core states (``h``)."""
+
+    mu_u: torch.Tensor
+    cov_u: torch.Tensor
+    mu_h: torch.Tensor
+    cov_h: torch.Tensor
+
+
+def _core_states(model: SeqDecoder, u: torch.Tensor) -> torch.Tensor:
+    if model.core_type == "gru":
+        h, _ = model.core(u)
+        return h
+    return model.core(model.proj(u))
+
+
+def _windows(zs, window: int, burn: int, max_windows: int, rng) -> torch.Tensor:
+    """Non-overlapping (or sampled) windows of length ``window`` from a list of arrays."""
+    out = []
+    for z in zs:
+        n = max(1, (len(z) - window) // max(1, window - burn) + 1)
+        starts = [min(i * (window - burn), max(0, len(z) - window)) for i in range(n)]
+        out.extend(z[s:s + window] for s in starts if len(z[s:s + window]) == window)
+    if len(out) > max_windows:
+        idx = rng.choice(len(out), max_windows, replace=False)
+        out = [out[i] for i in sorted(idx)]
+    return torch.as_tensor(np.stack(out), dtype=torch.float32)
+
+
+def _moments(x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    x = x.reshape(-1, x.shape[-1]).double()
+    mu = x.mean(0)
+    xc = x - mu
+    return mu, xc.T @ xc / max(1, len(x) - 1)
+
+
+@torch.no_grad()
+def latent_stats(model: SeqDecoder, zs, readins, window: int = 64, burn: int = 16,
+                 max_windows: int = 400, seed: int = 0) -> LatentStats:
+    """Pooled latent statistics over several days; ``readins[i]`` is the read-in for ``zs[i]``."""
+    model.eval()
+    rng = np.random.default_rng(seed)
+    dev = next(model.parameters()).device
+    us, hs = [], []
+    for z, r in zip(zs, readins):
+        x = _windows([z], window, burn, max_windows, rng).to(dev)
+        layer = model.readins[r] if isinstance(r, int) else r
+        u = layer(x)
+        h = _core_states(model, u)
+        us.append(u[:, burn:])
+        hs.append(h[:, burn:])
+    mu_u, cov_u = _moments(torch.cat([u.reshape(-1, u.shape[-1]) for u in us]))
+    mu_h, cov_h = _moments(torch.cat([h.reshape(-1, h.shape[-1]) for h in hs]))
+    return LatentStats(mu_u.float(), cov_u.float(), mu_h.float(), cov_h.float())
+
+
+def _sqrtm_sym(c: torch.Tensor, inv: bool = False, eps: float = 1e-6) -> torch.Tensor:
+    w, v = torch.linalg.eigh(c.double())
+    w = w.clamp_min(eps)
+    p = -0.5 if inv else 0.5
+    return (v * w ** p) @ v.T
+
+
+def mean_readin(model: SeqDecoder) -> nn.Linear:
+    new = copy.deepcopy(model.readins[0])
+    with torch.no_grad():
+        new.weight.copy_(torch.stack([r.weight for r in model.readins]).mean(0))
+        new.bias.copy_(torch.stack([r.bias for r in model.readins]).mean(0))
+    return new
+
+
+@torch.no_grad()
+def align_readin_moments(model: SeqDecoder, zs_new, ref: LatentStats, shrink: float = 0.1,
+                         init: nn.Linear | None = None, mean_only: bool = False) -> nn.Linear:
+    """Closed-form CORAL alignment of the read-in output to the reference distribution.
+
+    ``shrink`` blends each covariance towards its diagonal-mean (ridge-like) to keep
+    the matrix square roots stable with ~1 min of data. ``mean_only`` re-centres only.
+    """
+    base = init if init is not None else mean_readin(model)
+    W0, b0 = base.weight.double(), base.bias.double()
+    z = torch.as_tensor(np.concatenate(zs_new), dtype=torch.float64)
+    u = z @ W0.T + b0
+    mu_n, cov_n = _moments(u)
+    if mean_only:
+        A = torch.eye(len(b0), dtype=torch.float64)
+    else:
+        def shr(c):
+            return (1 - shrink) * c + shrink * torch.eye(len(c), dtype=c.dtype) * c.diagonal().mean()
+        A = _sqrtm_sym(shr(ref.cov_u.double())) @ _sqrtm_sym(shr(cov_n), inv=True)
+    new = copy.deepcopy(base)
+    new.weight.copy_((A @ W0).float())
+    new.bias.copy_((A @ (b0 - mu_n) + ref.mu_u.double()).float())
+    return new
+
+
+def gaussian_kl(mu0, c0, mu1, c1, eps: float = 1e-4) -> torch.Tensor:
+    """KL( N(mu0, c0) || N(mu1, c1) ) for full covariances."""
+    d = len(mu0)
+    I = torch.eye(d, dtype=c0.dtype, device=c0.device)
+    c0, c1 = c0 + eps * I, c1 + eps * I
+    L1 = torch.linalg.cholesky(c1)
+    c1inv = torch.cholesky_inverse(L1)
+    diff = (mu1 - mu0)[:, None]
+    logdet1 = 2 * torch.log(torch.diagonal(L1)).sum()
+    logdet0 = torch.linalg.slogdet(c0)[1]
+    return 0.5 * (torch.trace(c1inv @ c0) + (diff.T @ c1inv @ diff).squeeze() - d + logdet1 - logdet0)
+
+
+def align_readin_kl(model: SeqDecoder, zs_new, ref: LatentStats, steps: int = 150, lr: float = 2e-3,
+                    window: int = 64, burn: int = 16, batch: int = 24, anchor: float = 1e-2,
+                    w_u: float = 1.0, w_h: float = 1.0, init: nn.Linear | None = None,
+                    seed: int = 0) -> nn.Linear:
+    """NoMAD-style alignment: train only the read-in so that the Gaussian approximations of
+    the read-in output and the core state on the new day match the held-in reference
+    (``KL(new || ref)``), core frozen, anchored to the initial read-in."""
+    torch.manual_seed(seed)
+    rng = np.random.default_rng(seed)
+    dev = next(model.parameters()).device
+    new = copy.deepcopy(init if init is not None else mean_readin(model))
+    w0, b0 = new.weight.detach().clone(), new.bias.detach().clone()
+    X = _windows(zs_new, window, burn, 10_000, rng).to(dev)
+    ref_d = {k: getattr(ref, k).double().to(dev) for k in ("mu_u", "cov_u", "mu_h", "cov_h")}
+    for p in model.parameters():
+        p.requires_grad_(False)
+    model.eval()  # no dropout: we match the deterministic latent distribution
+    opt = torch.optim.Adam(new.parameters(), lr=lr)
+    for _ in range(steps):
+        idx = torch.as_tensor(rng.choice(len(X), size=min(batch, len(X)), replace=False))
+        u = new(X[idx])
+        h = _core_states(model, u)
+        mu_u, c_u = _moments(u[:, burn:])
+        mu_h, c_h = _moments(h[:, burn:])
+        loss = (w_u * gaussian_kl(mu_u, c_u, ref_d["mu_u"], ref_d["cov_u"]) / u.shape[-1]
+                + w_h * gaussian_kl(mu_h, c_h, ref_d["mu_h"], ref_d["cov_h"]) / h.shape[-1])
+        loss = loss.float() + anchor * (((new.weight - w0) ** 2).sum() + ((new.bias - b0) ** 2).sum())
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    for p in model.parameters():
+        p.requires_grad_(True)
+    return new

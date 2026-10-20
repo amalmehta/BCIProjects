@@ -24,8 +24,10 @@ from . import DOF_NAMES, RESULTS_ROOT
 from .config import load_config
 from .data import Block, Normalizer, held_out_pairs, load_blocks
 from .decoders.linear import KalmanFilter, WienerFilter, wiener_grid
-from .decoders.neural import (Augment, SeqDecoder, TrainCfg, finetune_all, fit_new_readin,
-                              pick_device, train_model)
+from .decoders.neural import (Augment, SeqDecoder, TrainCfg, align_readin_kl, align_readin_moments,
+                              finetune_all, fit_new_readin, latent_stats, mean_readin, pick_device,
+                              train_model)
+from .stats import add_decoding_stats
 from .metrics import block_scores, r2_per_dim, r2_variance_weighted
 
 
@@ -62,8 +64,11 @@ def split_tail(arrs: list[np.ndarray], frac: float) -> tuple[list, list]:
     return head, tail
 
 
-def run(cfg, parts: set[str] | None = None) -> dict:
-    """Run the experiments in ``parts`` ("linear" and/or neural variant names; all if None)."""
+def run(cfg, parts: set[str] | None = None, seeds: list[int] | None = None) -> dict:
+    """Run the experiments in ``parts`` ("linear" and/or neural variant names; all if None).
+
+    ``seeds`` restricts the neural seeds (default: ``decoding.seeds``), so each
+    (variant, seed) can run as its own process on a shared machine."""
     torch.set_num_threads(cfg.threads)
     dev = pick_device()
     dc = cfg.decoding
@@ -108,7 +113,8 @@ def run(cfg, parts: set[str] | None = None) -> dict:
         _run_linear(out, preds_store, dc, train, minival, pairs, test_B, zs, ys, ms, zs_tr, zs_va, ys_tr, ys_va, ms_tr,
                     ms_va, z_day, ny, score, val_score, global_norm)
     _run_neural(out, preds_store, dc, [v for v in nc.variants if v in parts], dev, days, day_id, minival, pairs,
-                test_B, zs, ys, ms, rid, zs_tr, zs_va, ys_tr, ys_va, ms_tr, ms_va, z_day, ny, score)
+                test_B, zs, ys, ms, rid, zs_tr, zs_va, ys_tr, ys_va, ms_tr, ms_va, z_day, ny, score,
+                global_norm, seeds)
     out["_preds"] = {m: {k: v.tolist() for k, v in d.items()} for m, d in preds_store.items()}
     return out
 
@@ -137,6 +143,7 @@ def _run_linear(out, preds_store, dc, train, minival, pairs, test_B, zs, ys, ms,
         if norm_name == "day":
             wf_day = wf
             preds_store["wiener"] = {b.key: wf.predict(z_day(b)) for b in test_B}
+            preds_store["wiener_within"] = {b.key: wf.predict(z_day(b)) for b in minival}
 
     # few-shot Wiener: (a) from scratch on k s of block A; (b) pooled refit held-in + k s
     proto = WienerFilter(wf_day.n_lags, wf_day.alpha, wf_day.smooth_tau, wf_day.stride)
@@ -176,7 +183,7 @@ def _run_linear(out, preds_store, dc, train, minival, pairs, test_B, zs, ys, ms,
 
 
 def _run_neural(out, preds_store, dc, names, dev, days, day_id, minival, pairs, test_B, zs, ys, ms, rid, zs_tr, zs_va,
-                ys_tr, ys_va, ms_tr, ms_va, z_day, ny, score) -> None:
+                ys_tr, ys_va, ms_tr, ms_va, z_day, ny, score, global_norm=None, seeds=None) -> None:
     """GRU / Transformer / multi-day GRU variants over seeds, with few-shot recalibration."""
     nc = dc.neural
     variants = {
@@ -190,7 +197,10 @@ def _run_neural(out, preds_store, dc, names, dev, days, day_id, minival, pairs, 
     per_seed: dict = {}
     for name in names:
         v = variants[name]
-        for seed in (dc.seeds if name in nc.multi_seed else dc.seeds[:1]):
+        run_seeds = dc.seeds if name in nc.multi_seed else dc.seeds[:1]
+        if seeds is not None:
+            run_seeds = [sd for sd in run_seeds if sd in seeds]
+        for seed in run_seeds:
             t0 = time.time()
             torch.manual_seed(seed)
             model = SeqDecoder(zs[0].shape[1], 7, n_readins=len(days) if v["per_day"] else 1,
@@ -205,14 +215,28 @@ def _run_neural(out, preds_store, dc, names, dev, days, day_id, minival, pairs, 
             hist = train_model(model, (zs_tr, ys_tr, ms_tr, r), (zs_va, ys_va, ms_va, r), tc, seed=seed,
                                log=lambda m: log(f"{name} s{seed}{m}"))
             res = {"train_time_s": time.time() - t0, "best_val": hist["best_val"]}
+            ck = RESULTS_ROOT / "checkpoints"
+            ck.mkdir(parents=True, exist_ok=True)
+            torch.save(model.state_dict(), ck / f"{name}_s{seed}.pt")
             # within-session
-            res["within"] = score(minival, [model.predict(z_day(b), day_id[b.day] if v["per_day"] else 0) for b in minival])
+            within_preds = [model.predict(z_day(b), day_id[b.day] if v["per_day"] else 0) for b in minival]
+            res["within"] = score(minival, within_preds)
+            if seed == dc.seeds[0] and name in ("gru", "ms_gru"):
+                preds_store[f"{name}_within"] = {b.key: p for b, p in zip(minival, within_preds)}
             # cross-session zero-shot: per-day read-in model uses the mean read-in
             if v["per_day"]:
                 zero_readin = fit_new_readin(model, [], [], [], steps=0)  # mean of trained read-ins
                 res["cross_zeroshot"] = score(test_B, [model.predict(z_day(b), zero_readin) for b in test_B])
             else:
                 res["cross_zeroshot"] = score(test_B, [model.predict(z_day(b), 0) for b in test_B])
+            # label-free recalibration (improvement 9): unlabelled block A only
+            if nc.get("unsup", {}).get("enabled", True):
+                t1 = time.time()
+                unsup = _unsup_recal(model, v["per_day"], nc, seed, pairs, zs_tr, rid, z_day, global_norm, score,
+                                     test_B, preds_store if seed == dc.seeds[0] else None, name)
+                res.update(unsup)
+                log(f"{name} seed {seed} label-free: " + " ".join(
+                    f"{k.replace('cross_', '')}={unsup[k]['r2_vw_mean']:.3f}" for k in unsup) + f" ({time.time()-t1:.0f}s)")
             # few-shot
             for k in dc.recal_seconds:
                 nb = int(k / 0.02)
@@ -238,6 +262,7 @@ def _run_neural(out, preds_store, dc, names, dev, days, day_id, minival, pairs, 
                 + " ".join(f"{k}s={res[f'cross_{k}s']['r2_vw_mean']:.3f}" for k in dc.recal_seconds)
                 + f" ({res['train_time_s']:.0f}s)")
             per_seed.setdefault(name, []).append(res)
+            out.setdefault("neural_runs", {})[f"{name}|{seed}"] = res
             # ablation for the proposed model: fine-tune everything instead of read-in only
             if name == "ms_gru" and nc.get("ablate_ft_all", True) and seed == dc.seeds[0]:
                 for k in dc.recal_seconds:
@@ -255,9 +280,16 @@ def _run_neural(out, preds_store, dc, names, dev, days, day_id, minival, pairs, 
                 log(f"ms_gru seed {seed} ft-all: " + " ".join(
                     f"{k}s={res[f'cross_ftall_{k}s']['r2_vw_mean']:.3f}" for k in dc.recal_seconds))
 
-    # aggregate across seeds
-    for name, runs in per_seed.items():
-        keys = [k for k in runs[0] if isinstance(runs[0][k], dict)]
+    aggregate_neural(out)
+
+
+def aggregate_neural(out: dict) -> None:
+    """Aggregate the raw per-(variant, seed) runs in ``out['neural_runs']`` across seeds."""
+    by_name: dict = {}
+    for key, res in sorted(out.get("neural_runs", {}).items()):
+        by_name.setdefault(key.split("|")[0], []).append(res)
+    for name, runs in by_name.items():
+        keys = sorted({k for r in runs for k in r if isinstance(r[k], dict)})
         for k in keys:
             have = [r for r in runs if k in r]  # some ablations run on the first seed only
             vals = [r[k]["r2_vw_mean"] for r in have]
@@ -265,13 +297,49 @@ def _run_neural(out, preds_store, dc, names, dev, days, day_id, minival, pairs, 
             entry = {"r2_vw_mean": float(np.mean(vals)), "r2_vw_seed_std": float(np.std(vals)),
                      "r2_vw_block_std": float(np.mean([r[k]["r2_vw_std"] for r in have])),
                      "r2_vw_blocks": np.mean([r[k]["r2_vw_blocks"] for r in have], 0).tolist(),
+                     "r2_vw_blocks_per_seed": [r[k]["r2_vw_blocks"] for r in have],
                      "r2_pooled_per_dof": per_dof, "n_seeds": len(have),
                      "r2_vw_per_seed": vals}
             if k == "within":
-                out["within"][name] = entry
+                out.setdefault("within", {})[name] = entry
             else:
-                out["cross"][f"{name}_{k.replace('cross_', '')}"] = entry
-        out["selection"][f"{name}_train_time_s"] = float(np.mean([r["train_time_s"] for r in runs]))
+                out.setdefault("cross", {})[f"{name}_{k.replace('cross_', '')}"] = entry
+        out.setdefault("selection", {})[f"{name}_train_time_s"] = float(np.mean([r["train_time_s"] for r in runs]))
+
+
+def _unsup_recal(model, per_day, nc, seed, pairs, zs_tr, rid, z_day, global_norm, score, test_B, preds_store,
+                 name) -> dict:
+    """Label-free recalibration on each held-out day, using block A's neural data only.
+
+    * ``zs_fixednorm``: no per-day re-centring/re-scaling (training-pooled z-scores) - the
+      ablation that shows what per-channel re-normalisation to the new day buys.
+    * ``unsup_center``: re-centre the read-in output (latent mean matching only).
+    * ``unsup_coral``: closed-form latent mean + covariance matching (CORAL).
+    * ``unsup_kl``: NoMAD-style KL alignment of read-in output and core-state Gaussians,
+      initialised at the CORAL solution.
+    All variants except ``zs_fixednorm`` use block-A per-channel z-scoring.
+    """
+    uc = nc.get("unsup", {})
+    win = nc.window if model.core_type == "gru" else nc.tf_context
+    burn = min(16, win // 4)
+    ref = latent_stats(model, zs_tr, [r if per_day else 0 for r in rid], window=win, burn=burn, seed=seed)
+    base = mean_readin(model)
+    preds = {k: [] for k in ("zs_fixednorm", "unsup_center", "unsup_coral", "unsup_kl")}
+    for a, b in pairs:
+        za = [z_day(a)]
+        preds["zs_fixednorm"].append(model.predict(global_norm(b.spikes).astype(np.float32), base))
+        ri_c = align_readin_moments(model, za, ref, mean_only=True, init=base)
+        preds["unsup_center"].append(model.predict(z_day(b), ri_c))
+        ri_m = align_readin_moments(model, za, ref, shrink=uc.get("shrink", 0.1), init=base)
+        preds["unsup_coral"].append(model.predict(z_day(b), ri_m))
+        ri_k = align_readin_kl(model, za, ref, steps=uc.get("kl_steps", 150), lr=uc.get("kl_lr", 2e-3),
+                               window=win, burn=burn, batch=uc.get("kl_batch", 24),
+                               anchor=uc.get("kl_anchor", 1e-2), w_h=uc.get("kl_w_h", 1.0), init=ri_m, seed=seed)
+        preds["unsup_kl"].append(model.predict(z_day(b), ri_k))
+    if preds_store is not None:
+        for k in ("unsup_coral", "unsup_kl"):
+            preds_store[f"{name}_{k}"] = {b.key: p for b, p in zip(test_B, preds[k])}
+    return {f"cross_{k}": score(test_B, p) for k, p in preds.items()}
 
 
 def _scratch_alpha(proto: WienerFilter, z: np.ndarray, y: np.ndarray, m: np.ndarray, alphas: list[float]) -> float:
@@ -317,6 +385,7 @@ def main() -> None:
     ap.add_argument("--config", default="configs/cpu.yaml")
     ap.add_argument("--parts", default=None,
                     help="comma-separated subset, e.g. 'linear,gru' (results go to results/decoding_parts/)")
+    ap.add_argument("--seeds", default=None, help="comma-separated neural seeds to run (default: all)")
     ap.add_argument("--merge", action="store_true", help="merge results/decoding_parts/ into the final files")
     args = ap.parse_args()
     res_dir = RESULTS_ROOT
@@ -324,6 +393,8 @@ def main() -> None:
     parts_dir = res_dir / "decoding_parts"
     if args.merge:
         out = _merge(parts_dir)
+        aggregate_neural(out)
+        add_decoding_stats(out)
         preds = {}
         for f in sorted(parts_dir.glob("*.npz")):
             d = np.load(f)
@@ -332,17 +403,19 @@ def main() -> None:
     else:
         cfg = load_config(args.config)
         parts = set(args.parts.split(",")) if args.parts else None
-        out = run(cfg, parts)
+        seeds = [int(x) for x in args.seeds.split(",")] if args.seeds else None
+        out = run(cfg, parts, seeds)
         preds = out.pop("_preds")
         arrays = {f"{m}|{k}": np.array(v) for m, d in preds.items() for k, v in d.items()}
         if parts is not None:
             parts_dir.mkdir(exist_ok=True)
-            tag = "_".join(sorted(parts))
+            tag = "_".join(sorted(parts)) + (f"_s{args.seeds.replace(',', '-')}" if args.seeds else "")
             (parts_dir / f"{tag}.json").write_text(json.dumps(out, indent=1))
             np.savez_compressed(parts_dir / f"{tag}.npz", **arrays)
             log(f"wrote part {tag}")
             return
         np.savez_compressed(res_dir / "decoding_preds.npz", **arrays)
+        add_decoding_stats(out)
     with open(res_dir / "decoding_metrics.json", "w") as fh:
         json.dump(out, fh, indent=1)
     log(f"wrote {res_dir / 'decoding_metrics.json'}")
