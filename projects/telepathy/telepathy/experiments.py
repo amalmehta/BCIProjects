@@ -533,6 +533,10 @@ def refit_linear(kind: str, base: Decoder, runs: list, mu, sd, cfg: dict) -> Dec
 
 def sim_decoders(ctx: Ctx, lin: dict, models: dict) -> dict:
     decs: dict[str, Decoder | None] = {"oracle": None, "wiener": lin["wiener"], "kalman": lin["kalman"]}
+    if isinstance(lin["kalman"], PVKalmanFilter):  # ablation: same filter without cursor-position feedback
+        k = copy.deepcopy(lin["kalman"])
+        k.position_feedback = False
+        decs["kalman_nofb"] = k
     if "kalman_v1" in lin:
         decs["kalman_v1"] = lin["kalman_v1"]
     for name in ("gru", "sld"):

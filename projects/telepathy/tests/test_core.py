@@ -230,6 +230,11 @@ def test_pv_kalman_learns_streams_and_batches():
         k.reset()
         stream = np.array([k.step(x) for x in d.X[:80]])
         np.testing.assert_allclose(stream, k.predict(d.X[:80]), atol=1e-3)
+    # ReFIT-KF position feedback: known cursor position is used, output stays finite
+    k.reset_batch(2)
+    k.set_cursor(np.zeros((2, 2)))
+    assert np.all(np.isfinite(k.step_batch(d.X[:2])))
+    assert np.allclose(k.K_fb[:2], 0)  # neural data never update the (known) position
     # pooled fit with per-segment statistics equals a fit on pre-normalised data
     k1 = PVKalmanFilter(3).fit(seg, mu, sd, seg_stats=[(mu, sd)])
     k2 = PVKalmanFilter(3).fit(seg, mu, sd)

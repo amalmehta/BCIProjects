@@ -282,7 +282,24 @@ class PVKalmanFilter(Decoder):
         self.A, self.H, self.d, self.K, self.W_noise = A, H, d, K, Wn
         self.M1 = (np.eye(n) - K @ H) @ A  # x_t = M1 x_{t-1} + K (z_t - d)
         self.vi = slice(0, 2) if self.order == 0 else slice(2, 4)
+        self.K_fb = self._feedback_gain(A, H, Wn, Q) if self.order > 0 else None
         return self
+
+    @staticmethod
+    def _feedback_gain(A, H, Wn, Q, iters: int = 400) -> np.ndarray:
+        """Steady-state gain when the cursor position is known (ReFIT-KF, Gilja et al. 2012):
+        the position block of the prior covariance is set to zero at every step, so neural data
+        only update velocity (and acceleration)."""
+        n = A.shape[0]
+        P = np.eye(n)
+        for _ in range(iters):
+            Pp = A @ P @ A.T + Wn
+            Pp[:2, :] = 0
+            Pp[:, :2] = 0
+            S = H @ Pp @ H.T + Q
+            K = np.linalg.solve(S, H @ Pp).T
+            P = (np.eye(n) - K @ H) @ Pp
+        return K
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         KZ = (self._obs(X).astype(np.float64) - self.d) @ self.K.T
@@ -300,13 +317,30 @@ class PVKalmanFilter(Decoder):
     def step(self, x: np.ndarray) -> np.ndarray:
         return self.step_batch(x[None])[0]
 
+    # Closed loop: with ``position_feedback`` the simulator reports the cursor position before every
+    # step (``set_cursor``) and the filter uses it as a known state, as ReFIT-KF does.
+    position_feedback: bool = True
+    cursor_center = np.array([5.0, 55.0])  # workspace centre (mm): position states are centred
+
+    def set_cursor(self, P: np.ndarray) -> None:
+        if self.order > 0 and self.position_feedback and getattr(self, "K_fb", None) is not None:
+            self._cursor = (np.asarray(P, np.float64) - self.cursor_center) * 10.0 / self.vscale
+
     def reset_batch(self, B: int) -> None:
         self._bx = np.zeros((B, self.n_state))
         self._bbuf = np.zeros((B, self.smooth_bins + self.obs_delay, len(self.mu)), np.float32)
+        self._cursor = None
 
     def step_batch(self, X: np.ndarray) -> np.ndarray:
         self._bbuf = np.roll(self._bbuf, 1, axis=1)
         self._bbuf[:, 0] = self.normalize(X)
         z = self._bbuf[:, self.obs_delay : self.obs_delay + self.smooth_bins].mean(1) - self.d
-        self._bx = self._bx @ self.M1.T + z @ self.K.T
+        if self._cursor is None:
+            self._bx = self._bx @ self.M1.T + z @ self.K.T
+        else:  # known position: x_prior = A [cursor, v, a]; innovation with the ReFIT gain
+            x = self._bx.copy()
+            x[:, :2] = self._cursor
+            xp = x @ self.A.T
+            self._bx = xp + (z - xp @ self.H.T) @ self.K_fb.T
+            self._cursor = None
         return (self._bx[:, self.vi] * self.vscale).astype(np.float32)

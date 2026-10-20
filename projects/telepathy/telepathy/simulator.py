@@ -379,6 +379,8 @@ def run_webgrid_batch(decoder: Decoder | None, enc: EncodingModel, user: UserMod
         if decoder is None:
             v_dec = rec_int[:, max(0, t - enc.fut)]
         elif batched:
+            if hasattr(decoder, "set_cursor"):  # decoders that use the known cursor position (ReFIT-KF)
+                decoder.set_cursor(p)
             v_dec = np.asarray(decoder.step_batch(counts), np.float64)
         else:
             v_dec = np.stack([c.step(x) for c, x in zip(copies, counts)]).astype(np.float64)
