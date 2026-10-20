@@ -340,7 +340,7 @@ class ThresholdAwareEncoder(nn.Module):
         n_feat = k + 2 + (2 if temporal else 0)
         self.head = nn.Sequential(nn.Linear(n_feat, hidden), nn.ReLU(), nn.Linear(hidden, 2))
         with torch.no_grad():
-            self.head[2].bias.copy_(torch.tensor([0.0, 0.0]))  # gates start undecided (about half on)
+            self.head[2].bias.copy_(torch.tensor([2.0, 0.0]))  # start with every usable electrode gated on
         self.max_current_ua, self.margin = ctx.max_current_ua, margin_ua
 
     def usable(self, cond: Condition) -> torch.Tensor:
