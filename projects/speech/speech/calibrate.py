@@ -9,7 +9,16 @@ day we compare:
                  (initialised from the most recent day's layer)
 * ``full``       fine-tune the whole network on N sentences
 
-and report greedy PER and n-gram WER on that day's held-out (``val``) sentences.
+and, without any labels from the new day (``speech.adapt``):
+
+* ``tta_moments`` / ``tta_coral``  match the new day's feature statistics to the last training day
+* ``tta_self_train``               pseudo-label self-training of the day layer (LM-constrained decodes,
+                                   confidence filtering), starting from ``reuse``
+* ``tta_coral+self_train``         self-training starting from the CORAL-initialised layer
+
+The unlabelled adaptation data is the new day's ``train`` split (the same pool the supervised
+modes draw labelled sentences from); the test sentences are never used for adaptation.
+We report greedy PER and n-gram WER on that day's held-out (``val``) sentences.
 
 Usage::
 
@@ -28,7 +37,10 @@ import numpy as np
 import torch
 
 from .config import get_device, load_config
+from .adapt import self_train, stats_adapt
+from .config import lm_paths
 from .evaluate import Decoder
+from .lm import load_cmudict
 from .metrics import wer
 from .models import build_model
 from .train import greedy_per, posteriors, prepare_data, train_loop
@@ -76,6 +88,7 @@ def main() -> None:
         print("[calibrate] up to date (use --force to rerun)")
         return
     ck = torch.load(res / "runs" / ccfg["base_run"] / "model.pt", map_location="cpu")
+    print(f"[calibrate] base model {ccfg['base_run']}", flush=True)
     rc = ck["run_config"]
     data = prepare_data(rc["data"], cfg["data_dir"])
     base = build_model(rc["model"], ck["n_days"])
@@ -87,28 +100,50 @@ def main() -> None:
 
     sys_cache = res / "decodes" / f"{ccfg['base_run']}.json"
     m = json.loads(sys_cache.read_text())["metrics"] if sys_cache.exists() else {"alpha": 0.8, "beta": 1.0}
+    beam = m.get("beam")
     dec = Decoder(cfg)
 
+    def decode_fn(lps):
+        return [h[0][0] for h in dec(lps, m["alpha"], m["beta"], beam=beam)]
+
+    def evaluate_model(model, row):
+        lps = posteriors(model, test, device)
+        row.update(per=greedy_per(lps, test), wer=wer(refs, decode_fn(lps)))
+        rows.append(row)
+        print(json.dumps(row), flush=True)
+
     rows = []
+    # ---- unsupervised test-time adaptation (no new-day labels)
+    tcfg = ccfg.get("tta") or {}
+    if tcfg:
+        lexicon = load_cmudict(lm_paths(cfg)[0] / "cmudict.dict")
+        ref = [t for t in data["train"] if t.day == prev_day]
+        reuse = finetune(base, [], new_day, prev_day, "reuse", ccfg, rc, device, 0)
+        coral = stats_adapt(base, pool, ref, new_day, prev_day, "coral", tcfg.get("coral_shrink", 0.1))
+        for name, model in (("tta_moments", stats_adapt(base, pool, ref, new_day, prev_day, "moments")), ("tta_coral", coral)):
+            evaluate_model(model, {"mode": name, "n_sentences": 0, "n_unlabelled": len(pool), "repeat": 0})
+        for start_name, start in (("tta_self_train", reuse), ("tta_coral+self_train", coral)):
+            log: list = []
+            torch.manual_seed(0)
+            model = self_train(start, pool, decode_fn, lexicon, rc, device, rounds=tcfg.get("rounds", 2),
+                               keep_frac=tcfg.get("keep_frac", 0.5), steps=tcfg.get("steps", ccfg["steps"]),
+                               lr=tcfg.get("lr", ccfg["lr_day"]), batch_size=ccfg["batch_size"], seed=0, log=log)
+            evaluate_model(model, {"mode": start_name, "n_sentences": 0, "n_unlabelled": len(pool), "repeat": 0,
+                                   "self_train_log": log})
     for rep in range(ccfg["repeats"]):
         rng = random.Random(100 + rep)
         order = list(range(len(pool)))
         rng.shuffle(order)
-        for mode in ("reuse", "day_layer", "full"):
+        for mode in ccfg.get("modes", ("reuse", "day_layer", "full")):
             for n in ([0] if mode == "reuse" else ccfg["n_sentences"]):
                 if mode == "reuse" and rep > 0:
                     continue
                 trials = [pool[i] for i in order[: min(n, len(pool))]]
                 torch.manual_seed(rep)
                 model = finetune(base, trials, new_day, prev_day, mode, ccfg, rc, device, seed=rep)
-                lps = posteriors(model, test, device)
-                hyps = [h[0][0] for h in dec(lps, m["alpha"], m["beta"])]
-                row = {"mode": mode, "n_sentences": len(trials), "repeat": rep,
-                       "per": greedy_per(lps, test), "wer": wer(refs, hyps)}
-                rows.append(row)
-                print(json.dumps(row), flush=True)
+                evaluate_model(model, {"mode": mode, "n_sentences": len(trials), "repeat": rep})
     dec.close()
-    out = {"settings": ccfg, "base_run": ccfg["base_run"], "heldout_session": rc["data"]["heldout_session"],
+    out = {"settings": ccfg, "base_run": ccfg["base_run"], "decoder": {k: m.get(k) for k in ("alpha", "beta", "beam")}, "heldout_session": rc["data"]["heldout_session"],
            "n_test_sentences": len(test), "pool_size": len(pool), "rows": rows}
     (res / "calibration.json").write_text(json.dumps(out, indent=2))
 
