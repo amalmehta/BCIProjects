@@ -1,0 +1,9 @@
+[15:39:30] train blocks 13 over 6 days; minival 13; held-out days 7
+[15:39:57] gru s1  step   250 train 0.7314 val 0.6183
+[15:40:17] gru s1  step   500 train 0.4158 val 0.5241
+[15:40:37] gru s1  step   750 train 0.4543 val 0.4578
+[15:40:55] gru s1  step  1000 train 0.3985 val 0.4622
+[15:41:13] gru s1  step  1200 train 0.3582 val 0.4518
+[15:42:22] gru seed 1 label-free: zs_fixednorm=0.194 unsup_center=0.230 unsup_coral=0.238 unsup_kl=0.250 (66s)
+[15:44:00] gru seed 1: within=0.628 zs=0.225 10s=0.122 20s=0.137 45s=0.192 (102s)
+[15:44:00] wrote part gru_s1

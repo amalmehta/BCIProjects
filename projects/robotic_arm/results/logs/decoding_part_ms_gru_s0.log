@@ -1,0 +1,10 @@
+[15:05:55] train blocks 13 over 6 days; minival 13; held-out days 7
+[15:07:03] ms_gru s0  step   250 train 0.3903 val 0.7155
+[15:08:12] ms_gru s0  step   500 train 0.4008 val 0.6085
+[15:09:20] ms_gru s0  step   750 train 0.2448 val 0.5442
+[15:10:25] ms_gru s0  step  1000 train 0.2497 val 0.5280
+[15:11:02] ms_gru s0  step  1200 train 0.2185 val 0.5209
+[15:13:34] ms_gru seed 0 label-free: zs_fixednorm=0.221 unsup_center=0.188 unsup_coral=0.203 unsup_kl=0.266 (145s)
+[15:15:57] ms_gru seed 0: within=0.573 zs=0.185 10s=0.325 20s=0.315 45s=0.321 (306s)
+[15:18:40] ms_gru seed 0 ft-all: 10s=0.217 20s=0.198 45s=0.222
+[15:18:42] wrote part ms_gru_s0

@@ -1,0 +1,8 @@
+[14:51:22] train blocks 13 over 6 days; minival 13; held-out days 7
+[14:57:01] wiener day: lags=15 alpha=0.1 within=0.321 cross0=0.110 (337s)
+[15:00:37] wiener global: lags=15 alpha=0.1 within=0.319 cross0=0.048 (214s)
+[15:03:23] wiener few-shot 10s: scratch=-0.121 pooled=0.115
+[15:04:12] wiener few-shot 20s: scratch=0.002 pooled=0.116
+[15:05:17] wiener few-shot 45s: scratch=0.035 pooled=0.122
+[15:05:43] kalman tau=3.0 lag=0 decay=0.98 within=0.242 cross0=0.039
+[15:05:44] wrote part linear

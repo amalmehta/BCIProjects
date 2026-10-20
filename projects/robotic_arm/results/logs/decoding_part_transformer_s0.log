@@ -1,0 +1,7 @@
+[15:48:18] train blocks 13 over 6 days; minival 13; held-out days 7
+/Users/amalmehta/Desktop/Amals Work/2026/2026_projects/neuralink_product_dev/.venv/lib/python3.11/site-packages/torch/nn/modules/transformer.py:286: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(f"enable_nested_tensor is True, but self.use_nested_tensor is False because {why_not_sparsity_fast_path}")
+[15:48:55] transformer s0  step   250 train 0.4201 val 0.6748
+[15:49:33] transformer s0  step   500 train 0.5832 val 0.5969
+[15:50:11] transformer s0  step   750 train 0.5150 val 0.5180
+[15:50:51] transformer s0  step  1000 train 0.4724 val 0.4736
