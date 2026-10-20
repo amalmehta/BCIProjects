@@ -47,8 +47,8 @@ eval:
   n_clf_train: 6000
   clf_epochs: 4
   clf_batch: 128
-  dropout_levels: [0.1, 0.25, 0.5]
-  threshold_noise_cv: 0.2  # calibration-error check: thresholds seen by encoders x lognormal(0, cv)   # 0 % is the main result
+  dropout_levels: [0.1, 0.25, 0.5]   # 0 % is the main result
+  threshold_noise_cv: 0.2  # calibration-error check: thresholds seen by encoders x lognormal(0, cv)
   oracle_images: 128
   oracle_steps: 100
 adapt:
