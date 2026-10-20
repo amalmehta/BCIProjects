@@ -88,6 +88,31 @@ def calibrate(enc: EncodingModel, calib_vel: list[np.ndarray], test_vel: list[np
     return Calibration(dec, err, r2)
 
 
+def calibrate_residual(model, calib_vel: list[np.ndarray], test_vel: list[np.ndarray], rng: np.random.Generator,
+                       gain_exponent: float = 0.5, n_test_repeats: int = 4) -> Calibration:
+    """Calibration for a decoder driven by real residuals (see :mod:`residuals`).
+
+    Mirrors :func:`calibrate`: the same partial speed-gain correction is estimated on a
+    simulated calibration block, and the offline R² and DASA's error model (G, Sigma, tau)
+    are measured on a separate simulated test block, built from real cued velocities.
+    """
+    from .residuals import OnlineResidualDecoder
+
+    dec = OnlineResidualDecoder(model)
+    pred = np.concatenate([dec.run(v, rng) for v in calib_vel])
+    truth = np.concatenate(calib_vel)
+    slope = (pred * truth).sum(0) / (truth * truth).sum(0)
+    test_vel = list(test_vel) * n_test_repeats
+    preds_t = [dec.run(v, rng) for v in test_vel]
+    truth_t = np.concatenate(test_vel)
+    r2 = r2_variance_weighted(truth_t, np.concatenate(preds_t))
+    dec.gain = np.clip(slope, 0.1, 1.5) ** (-gain_exponent)
+    pred_t = np.concatenate([p * dec.gain for p in preds_t])
+    err = DecoderErrorModel.fit(truth_t, pred_t)
+    dec.horizon = 2000
+    return Calibration(dec, err, r2)
+
+
 @dataclass
 class EpisodeResult:
     success: bool
@@ -111,8 +136,15 @@ def run_episode(scene: Scene, goal: int, cal: Calibration, enc: EncodingModel, m
     """Run one reach-and-grasp episode under a given assistance method."""
     arm = Arm(dt=DT)
     user = UserModel(goal=goal, switch_goal=switch_goal, **(user_kwargs or {}))
-    encoder = OnlineEncoder(enc, rng)
-    cal.decoder.reset()
+    if getattr(cal.decoder, "takes_intent", False):  # real-residual decoder: no spikes
+        cal.decoder.reset(rng)
+        decode = cal.decoder.step
+    else:
+        encoder = OnlineEncoder(enc, rng)
+        cal.decoder.reset()
+
+        def decode(z):
+            return cal.decoder.step(encoder.step(z))
     arb = Arbitration(name=method, dt=DT, err=cal.err, **(arb_kwargs or {}))
     arb.reset()
     ik = dict(infer_kwargs or {})
@@ -137,7 +169,7 @@ def run_episode(scene: Scene, goal: int, cal: Calibration, enc: EncodingModel, m
         user.maybe_switch(t, p0, view.p, scene)
         seen = hist[0]  # delayed visual feedback
         z_int = user.intent(seen.p, seen.yaw, seen.aperture, scene, rng)
-        z_hat = cal.decoder.step(encoder.step(z_int))
+        z_hat = decode(z_int)
         u_hat = decoded_to_command(z_hat)
         if method == "dasa":
             b = inf.update(u_hat, view, scene, z_hat=z_hat)

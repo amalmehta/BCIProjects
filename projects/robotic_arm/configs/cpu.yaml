@@ -57,3 +57,17 @@ closed_loop:
   max_steps: 1000           # 20 s at 50 Hz
   workers: 3
   seed: 1234
+  # Closed loop driven by real FALCON H1 decoder errors (improvement 10):
+  # z_hat = FIR(intended) + speed-scaled, block-bootstrapped real residuals
+  real_residuals:
+    n_lags: 15              # 300 ms causal FIR from intended to decoded velocity
+    ridge: 1.0
+    block_len: 100          # 2 s moving blocks keep the residual autocorrelation
+    primary: wiener_within  # used to re-tune every method's hyper-parameters
+    retune: true
+    episodes: 60
+    sources:
+      wiener_within: {preds: wiener_within, conditioned: true}        # real Wiener, held-in minival
+      wiener_within_raw: {preds: wiener_within, conditioned: false}   # same, plain block bootstrap
+      proposed_within: {preds: ms_gru_within, conditioned: true}      # multi-day GRU, held-in minival
+      wiener_crossday: {preds: wiener, conditioned: true}             # zero-shot Wiener, held-out days

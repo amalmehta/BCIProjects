@@ -70,6 +70,26 @@ class TorchDecoder(Decoder):
         y, _, _ = self.model(torch.stack(self._buf)[None], torch.tensor([self.day]))
         return y[0, -1].numpy() * self.vscale
 
+    def reset_batch(self, B: int) -> None:
+        self._bh = None
+        self._bbuf = []
+        self._bday = torch.full((B,), self.day, dtype=torch.long)
+
+    @torch.no_grad()
+    def step_batch(self, X: np.ndarray) -> np.ndarray:
+        """B streams at once: (B, C) counts -> (B, 2) velocity (same maths as :meth:`step`)."""
+        xn = torch.as_tensor(self.normalize(X), dtype=torch.float32)[:, None]
+        if not self.is_sld:
+            y, self._bh = self.model(xn, None, self._bh)
+            return (y[:, -1].numpy() * self.vscale).astype(np.float32)
+        if self.model.backbone == "gru":
+            h, self._bh = self.model.latents(xn, self._bday, self._bh, return_state=True)
+            return (self.model.vel_head(h)[:, -1].numpy() * self.vscale).astype(np.float32)
+        self._bbuf.append(xn[:, 0])
+        self._bbuf = self._bbuf[-self.model.receptive_field :]
+        y, _, _ = self.model(torch.stack(self._bbuf, 1), self._bday)
+        return (y[:, -1].numpy() * self.vscale).astype(np.float32)
+
 
 # ----------------------------------------------------------------------------------------
 # Training on calibration ("anchor") days

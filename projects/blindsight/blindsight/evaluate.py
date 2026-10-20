@@ -8,8 +8,12 @@ report:
   and tested on held-out images - a proxy for what a user could learn to recognise;
 * stimulation cost: active electrodes per frame and total charge per phase per frame
   (sum over electrodes of I * pulse width, in nC);
-* robustness: SSIM and accuracy after extra, unannounced electrode failures (the
-  classifier and encoder are not retrained).
+* robustness: SSIM and accuracy after extra electrode failures (the classifier and
+  encoder are not retrained), either unannounced (``dropout``: the encoder keeps the intact
+  calibration) or known-dead (``dropout_known``: the failures are masked before the safety
+  layer, and conditioned encoders are told about them);
+* budget use: share of active electrodes whose current is below the patient's true
+  detection threshold (it evokes nothing) and the share of charge spent on them.
 """
 from __future__ import annotations
 
@@ -22,13 +26,46 @@ import torch.nn.functional as F
 
 from .config import Setup, get_device
 from .data import N_CLASSES, ImageSet
-from .encoders import (EdgeEncoder, IntensityEncoder, LearnedEncoder, PerceptClassifier,
-                       SalientEdgeEncoder)
+from .encoders import (Condition, Conditioned, EdgeEncoder, IntensityEncoder, LearnedEncoder, MaskedEncoder,
+                       PerceptClassifier, SalientEdgeEncoder, ThresholdAwareEncoder)
 from .metrics import psnr, ssim, ssim_lowpass
 from .simulator import Patient
 from .train import end_to_end_loss, percept_loss
 
 EncoderFactory = Callable[[Patient], torch.nn.Module]
+KnownFactory = Callable[[Patient, Patient], torch.nn.Module]  # (intact patient, patient with failures)
+
+
+def default_known(factory: EncoderFactory) -> KnownFactory:
+    """Known-dead masking for any encoder: zero the failed electrodes before the safety layer."""
+    return lambda intact, failed: MaskedEncoder(factory(intact), failed.alive)
+
+
+def conditioned_factories(enc: ThresholdAwareEncoder, setup: Setup, noise_cv: float = 0.0,
+                          noise_seed: int = 0) -> tuple[EncoderFactory, KnownFactory]:
+    """Factories binding a conditioned encoder to each patient's calibration.
+
+    ``noise_cv`` > 0 multiplies the thresholds the encoder is told by lognormal noise (calibration error);
+    the simulator still uses the true thresholds."""
+    def cond(p: Patient, alive: torch.Tensor) -> Condition:
+        thr = p.threshold_current_ua(setup.params)
+        if noise_cv > 0:
+            g = torch.Generator().manual_seed(noise_seed + int(p.name.split("_")[1]))
+            thr = thr * torch.exp(noise_cv * torch.randn(len(thr), generator=g)).to(thr.device)
+        return Condition(thr, alive.clone())
+    return (lambda p: Conditioned(enc, cond(p, p.alive)),
+            lambda intact, failed: Conditioned(enc, cond(intact, failed.alive)))
+
+
+def budget_stats(amps: torch.Tensor, thr: torch.Tensor) -> dict:
+    """Share of active currents at or below the true threshold (no phosphene) and their share of charge."""
+    active = amps > 0
+    sub = active & (amps <= thr)
+    n_act = active.float().sum().clamp_min(1)
+    return {"frac_active_subthreshold": float(sub.float().sum() / n_act),
+            "frac_active_above_threshold": float(1 - sub.float().sum() / n_act),
+            "wasted_charge_frac": float((amps * sub).sum() / amps.sum().clamp_min(1e-9)),
+            "median_active_current_ua": float(amps[active].median()) if active.any() else 0.0}
 
 
 def baseline_factories(setup: Setup) -> dict[str, EncoderFactory]:
@@ -98,7 +135,8 @@ def cost_stats(amps: torch.Tensor, setup: Setup) -> dict:
 
 def evaluate_factory(name: str, factory: EncoderFactory, setup: Setup, dataset: str, train_set: ImageSet,
                      test_set: ImageSet, cfg: dict, log=print, dropout_levels: list[float] | None = None,
-                     decoder: torch.nn.Module | None = None, keep_examples: int = 0) -> dict:
+                     decoder: torch.nn.Module | None = None, keep_examples: int = 0,
+                     known_factory: KnownFactory | None = None) -> dict:
     """Full evaluation of one encoder over the test patients."""
     ec = cfg["eval"]
     seeds = cfg["patients"]["test_seeds"]
@@ -115,6 +153,8 @@ def evaluate_factory(name: str, factory: EncoderFactory, setup: Setup, dataset: 
     clf = train_classifier(p_tr, y_tr, N_CLASSES[dataset], ec["clf_epochs"], ec["clf_batch"])
     res = {"encoder": name, "ssim": float(s.mean()), "ssim_patient_std": float(np.std(per_patient)),
            "ssim_lowpass": float(ssim_lowpass(p_te, x_te).mean()), "psnr": float(q.mean()), "acc": accuracy(clf, p_te, y_te), **cost_stats(amp_te, setup)}
+    thr_te = torch.stack([p.threshold_current_ua(setup.params) for p in patients])[torch.as_tensor(a_te, device=dev)]
+    res.update(budget_stats(amp_te, thr_te))
     if decoder is not None:
         with torch.no_grad():
             rec = torch.cat([decoder(p_te[i:i + 512]) for i in range(0, len(p_te), 512)])
@@ -129,10 +169,20 @@ def evaluate_factory(name: str, factory: EncoderFactory, setup: Setup, dataset: 
             res["dropout"][str(lvl)] = {"ssim": float(ssim(pd, x_te).mean()),
                                         "ssim_lowpass": float(ssim_lowpass(pd, x_te).mean()),
                                         "acc": accuracy(clf, pd, y_te)}
+        res["dropout_known"] = {}
+        known = known_factory or default_known(factory)
+        for lvl in dropout_levels:
+            dp = [setup.patient(sd, extra_dropout=lvl) for sd in seeds]
+            pd, _ = render_all(lambda p, _m={id(a): b for a, b in zip(dp, patients)}: known(_m[id(p)], p),
+                               setup, dp, x_te, a_te)
+            res["dropout_known"][str(lvl)] = {"ssim": float(ssim(pd, x_te).mean()),
+                                              "ssim_lowpass": float(ssim_lowpass(pd, x_te).mean()),
+                                              "acc": accuracy(clf, pd, y_te)}
     if keep_examples:
         res["_examples"] = p_te[:keep_examples].cpu().clone()
     log(f"  {dataset:8s} {name:24s} ssim={res['ssim']:.3f} lp={res['ssim_lowpass']:.3f} psnr={res['psnr']:.2f} acc={res['acc']:.3f} "
-        f"active={res['active_electrodes']:.0f} charge={res['charge_nc_per_phase']:.0f}nC")
+        f"active={res['active_electrodes']:.0f} charge={res['charge_nc_per_phase']:.0f}nC "
+        f"sub={res['frac_active_subthreshold']:.3f}")
     return res
 
 
@@ -212,5 +262,7 @@ def evaluate_oracle(setup: Setup, test_set: ImageSet, cfg: dict, log=print) -> d
            "ssim_patient_std": float(np.std([float(v.mean()) for v in ss])),
            "ssim_lowpass": float(torch.cat(ls).mean()), "psnr": float(torch.cat(qs).mean()),
            "acc": None, "n_images": n * len(ss), **cost_stats(torch.cat(amps), setup)}
+    thr = torch.cat([setup.patient(sd).threshold_current_ua(setup.params).expand(n, -1) for sd in cfg["patients"]["test_seeds"]])
+    res.update(budget_stats(torch.cat(amps), thr))
     log(f"  oracle ssim={res['ssim']:.3f} psnr={res['psnr']:.2f}")
     return res

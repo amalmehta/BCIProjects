@@ -26,7 +26,8 @@ import numpy as np  # noqa: E402
 from scipy.stats import binomtest  # noqa: E402
 
 from . import RESULTS_ROOT  # noqa: E402
-from .closed_loop import calibrate, run_episode  # noqa: E402
+from .closed_loop import calibrate, calibrate_residual, run_episode  # noqa: E402
+from .residuals import fit_residual_model  # noqa: E402
 from .config import load_config  # noqa: E402
 from .data import Normalizer, load_blocks  # noqa: E402
 from .decoders.linear import WienerFilter  # noqa: E402
@@ -111,6 +112,7 @@ def _episode_job(args):
 
 _POOL: Pool | None = None
 _CACHE: dict | None = None
+_CACHE_NAME = "closed_loop_cache.jsonl"
 
 
 def _job_key(job) -> str:
@@ -122,7 +124,7 @@ def _job_key(job) -> str:
 
 
 def _cache_path():
-    return RESULTS_ROOT / "closed_loop_cache.jsonl"
+    return RESULTS_ROOT / _CACHE_NAME
 
 
 def run_jobs(jobs: list, workers: int, timeout_per_job: float = 60.0) -> list:
@@ -405,13 +407,120 @@ def run(cfg) -> dict:
     return out
 
 
+# --------------------------------------------------------------------------- real residuals
+def _residual_sources(cfg, ny) -> dict:
+    """Fit one residual model per configured real decoder (see :mod:`residuals`)."""
+    rr = cfg.closed_loop.real_residuals
+    B = load_blocks()
+    preds = np.load(RESULTS_ROOT / "decoding_preds.npz")
+    blocks = {b.key: b for b in B["held_in_minival"] + B["held_out_calib"]}
+    models = {}
+    for name, spec in rr.sources.items():
+        keys = sorted(k.split("|", 1)[1] for k in preds.files if k.split("|", 1)[0] == spec["preds"])
+        if not keys:
+            raise KeyError(f"no predictions '{spec['preds']}' in decoding_preds.npz; run run_decoding first")
+        bl = [blocks[k] for k in keys]
+        models[name] = fit_residual_model([ny(b.vel) for b in bl], [preds[f"{spec['preds']}|{k}"] for k in keys],
+                                          [b.eval_mask for b in bl], n_lags=rr.n_lags, ridge=rr.ridge,
+                                          block_len=rr.block_len, conditioned=spec.get("conditioned", True),
+                                          source=spec["preds"])
+        st = models[name].stats
+        log(f"residual source {name}: {st['n_bins']} bins in {st['n_segments']} runs, real R2 {st['real_r2_vw']:.3f}, "
+            f"FIR R2 {st['fir_r2_vw']:.3f}, residual tau {np.mean(st['resid_tau_ticks']):.1f} ticks")
+    return models
+
+
+def run_real(cfg) -> dict:
+    """Main shared-autonomy comparison with decoder noise replayed from real H1 decoders."""
+    cl = cfg.closed_loop
+    rr = cl.real_residuals
+    t_start = time.time()
+    B = load_blocks()
+    ny = Normalizer.fit(np.concatenate([b.vel[b.eval_mask] for b in B["held_in_calib"]]))
+    cal_vel = [ny(b.vel) for b in B["held_in_calib"] if b.day.isoformat() == cl.calib_day]
+    test_vel = [ny(b.vel) for b in B["held_in_minival"] if b.day.isoformat() == cl.calib_day]
+    models = _residual_sources(cfg, ny)
+    rng = np.random.default_rng(cl.seed)
+    cals = {}
+    out: dict = {"sources": {}, "methods": list(cl.methods), "primary": rr.primary}
+    for name, m in models.items():
+        cal = calibrate_residual(m, cal_vel, test_vel, rng, gain_exponent=cl.gain_exponent)
+        cals[name] = cal
+        out["sources"][name] = {"preds": m.source, "conditioned": m.conditioned, "residual_stats": m.stats,
+                                "sim_offline_r2": cal.r2_test, "err_tau": cal.err.tau}
+        log(f"{name}: simulated offline R2 {cal.r2_test:.3f} (real {m.stats['real_r2_vw']:.3f}); err tau {cal.err.tau:.1f}")
+
+    def jobs_for(method, src, idxs, scenario, arb, inf, seed_offset=0, record=False):
+        return [(method, f"real:{src}", i, scenario, None, cals[src], arb, inf, cl.seed + seed_offset, cl.n_objects,
+                 cl.max_steps, record) for i in idxs]
+
+    # re-tune every method on separate seeds under the primary real-residual noise
+    tuned, tune_log = {}, {}
+    if rr.get("retune", True):
+        for method, grid in TUNING_GRID.items():
+            if method not in cl.methods:
+                continue
+            best = None
+            for setting in grid:
+                rows = run_jobs(jobs_for(method, rr.primary, range(cl.tune_episodes), "standard", setting["arb"],
+                                         setting["infer"], 10_000)
+                                + jobs_for(method, rr.primary, range(cl.tune_episodes), "change_of_mind",
+                                           setting["arb"], setting["infer"], 10_000), cl.workers)
+                sm = summarize(rows)
+                obj = sm["success"] - sm["wrong_grasp"] - 0.01 * (sm["time_to_grasp_mean"] or 20.0)
+                tune_log.setdefault(method, []).append({"setting": setting, "success": sm["success"],
+                                                        "wrong": sm["wrong_grasp"], "objective": obj})
+                if best is None or obj > best[0]:
+                    best = (obj, setting)
+            tuned[method] = best[1]
+            log(f"tuned {method} (real residuals): {best[1]} (objective {best[0]:.3f})")
+    out["tuning"] = {"chosen": tuned, "log": tune_log}
+
+    n_ep = rr.get("episodes", cl.episodes)
+    for name in models:
+        res: dict = {}
+        rows_by = {}
+        for scen in ("standard", "change_of_mind", "clutter"):
+            res[scen] = {}
+            for method in cl.methods:
+                arb, inf = method_settings(tuned, method)
+                rows = run_jobs(jobs_for(method, name, range(n_ep), scen, arb, inf), cl.workers)
+                rows_by[(method, scen)] = rows
+                res[scen][method] = summarize(rows)
+                sm = res[scen][method]
+                log(f"[{name}] {scen:14s} {method:10s} success {sm['success']:.2f} wrong {sm['wrong_grasp']:.2f} "
+                    f"T {sm['time_to_grasp_mean']} yield {sm['yield_latency_median']}  [{time.time()-t_start:.0f}s]")
+        res["tests"] = {f"{scen}:dasa_vs_{m}": paired_test(rows_by[("dasa", scen)], rows_by[(m, scen)])
+                        for scen in ("standard", "change_of_mind", "clutter") for m in cl.methods if m != "dasa"}
+        res["n_episodes"] = n_ep
+        out["sources"][name].update(res)
+    out["wall_time_s"] = time.time() - t_start
+    return out
+
+
 def main() -> None:
+    global _CACHE_NAME
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/cpu.yaml")
     ap.add_argument("--resume", action="store_true", help="reuse episodes cached by an interrupted run")
+    ap.add_argument("--real-residuals", action="store_true",
+                    help="only run the comparison driven by real decoder residuals (closed_loop_real_metrics.json)")
     args = ap.parse_args()
     cfg = load_config(args.config)
     RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
+    if args.real_residuals:
+        _CACHE_NAME = "closed_loop_real_cache.jsonl"
+        if not args.resume and _cache_path().exists():
+            _cache_path().unlink()
+        try:
+            out = run_real(cfg)
+        finally:
+            if _POOL is not None:
+                _POOL.close()
+        with open(RESULTS_ROOT / "closed_loop_real_metrics.json", "w") as fh:
+            json.dump(out, fh, indent=1)
+        log("wrote closed_loop_real_metrics.json")
+        return
     if not args.resume and _cache_path().exists():
         _cache_path().unlink()
     try:

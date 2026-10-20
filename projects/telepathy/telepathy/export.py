@@ -46,12 +46,12 @@ def _save(fig, ctx, name):
 
 # ----------------------------------------------------------------------------------------
 def fig_within(ctx, within):
-    keys = [k for k in ("wiener_per_day", "kalman_per_day", "fa", "wiener", "kalman", "gru", "gru_aug", "sld")
+    keys = [k for k in ("wiener_per_day", "kalman_per_day", "fa", "wiener", "kalman_v1", "kalman", "gru", "gru_aug", "sld")
             if k in within]
     labels = {"wiener_per_day": "Wiener\n(per day)", "kalman_per_day": "Kalman\n(per day)", "fa": "FA\nstabiliser",
-              "wiener": "Wiener\n(5 days)", "kalman": "Kalman\n(5 days)", "gru": "GRU", "gru_aug": "GRU\n+aug",
+              "wiener": "Wiener\n(5 days)", "kalman": "Kalman PVA\n(5 days)", "kalman_v1": "Kalman v1\n(vel. only)", "gru": "GRU", "gru_aug": "GRU\n+aug",
               "sld": "SLD\n(proposed)"}
-    fig, ax = plt.subplots(figsize=(6.4, 2.8))
+    fig, ax = plt.subplots(figsize=(7.0, 2.8))
     for i, k in enumerate(keys):
         base = k.replace("_per_day", "")
         m, s = within[k]["mean"], within[k]["std"]
@@ -146,9 +146,10 @@ def fig_bps(ctx, cl):
     fig, axes = plt.subplots(1, 2, figsize=(7.6, 3.0), gridspec_kw={"width_ratios": [1, 1.3]})
     ax = axes[0]
     for i, k in enumerate(order):
-        m, s = cl["main"][k]["mean"], cl["main"][k]["std"]
-        ax.bar(i, m, 0.7, color=COLORS[k], yerr=s, capsize=3, edgecolor="white", linewidth=2)
-        ax.text(i, m + s + 0.1, f"{m:.2f}", ha="center", fontsize=8)
+        m = cl["main"][k]["mean"]
+        lo, hi = cl["main"][k].get("ci95", [m - cl["main"][k]["std"], m + cl["main"][k]["std"]])
+        ax.bar(i, m, 0.7, color=COLORS[k], yerr=[[m - lo], [hi - m]], capsize=3, edgecolor="white", linewidth=2)
+        ax.text(i, hi + 0.1, f"{m:.2f}", ha="center", fontsize=8)
     for k in ("wiener", "kalman"):
         if k in cl.get("refit", {}):
             i = order.index(k)
@@ -156,8 +157,8 @@ def fig_bps(ctx, cl):
             ax.plot([i - 0.35, i + 0.35], [a, a], color="#2b2b2a", lw=1.5, ls="--")
     ax.set_xticks(range(len(order)), ["Oracle", "Wiener", "Kalman", "GRU", "SLD"][: len(order)] if order[0] == "oracle"
                   else order)
-    ax.set_ylabel("Simulated bits per second")
-    ax.set_title(f"WebGrid {cl['grid']}×{cl['grid']} (simulated, click)")
+    ax.set_ylabel("Simulated bits per second (mean, 95% CI)")
+    ax.set_title(f"WebGrid {cl['grid']}×{cl['grid']}, {cl.get('n_sessions', '')} paired sessions")
     ax.grid(axis="x", visible=False)
     ax = axes[1]
     g = cl["grid_sweep"]["grids"]
@@ -189,6 +190,30 @@ def fig_crossday_bps(ctx, cl):
     ax.set_title(f"Closed-loop bitrate on later days (WebGrid {cl['grid']}×{cl['grid']})")
     ax.legend(fontsize=6.5, ncol=2)
     _save(fig, ctx, "fig_crossday_bps.png")
+
+
+def fig_clda(ctx, cd):
+    """Simulated bitrate (mean, 95% CI) and offline R^2 per closed-loop adaptation round."""
+    fig, axes = plt.subplots(1, 2, figsize=(7.4, 2.9))
+    for k, rec in cd["decoders"].items():
+        b = k.replace("_head", "")
+        ls = "--" if k.endswith("_head") else "-"
+        r = [x["round"] for x in rec["rounds"]]
+        m = np.array([x["bps"]["mean"] for x in rec["rounds"]])
+        lo = np.array([x["bps"]["ci95"][0] for x in rec["rounds"]])
+        hi = np.array([x["bps"]["ci95"][1] for x in rec["rounds"]])
+        lab = NAMES.get(b, b).replace(" (proposed)", "") + (" (adapter+head)" if k.endswith("_head") else "")
+        axes[0].plot(r, m, ls, color=COLORS.get(b, "#8a8985"), marker="o", ms=3.5, label=lab)
+        axes[0].fill_between(r, lo, hi, color=COLORS.get(b, "#8a8985"), alpha=0.1, lw=0)
+        axes[1].plot(r, [x["offline_r2"] for x in rec["rounds"]], ls, color=COLORS.get(b, "#8a8985"), marker="o", ms=3.5)
+    axes[0].set_xlabel("Closed-loop adaptation round (0 = offline-trained)")
+    axes[0].set_ylabel("Simulated bits per second")
+    axes[0].legend(fontsize=6.5)
+    axes[0].set_title("ReFIT-style adaptation in the simulator")
+    axes[1].set_xlabel("Round")
+    axes[1].set_ylabel("Offline $R^2$ (real test block)")
+    axes[1].set_title("Offline accuracy after adaptation")
+    _save(fig, ctx, "fig_clda.png")
 
 
 def fig_fidelity(ctx, cl):
@@ -332,7 +357,7 @@ def export_all(ctx) -> None:
     site.mkdir(exist_ok=True)
     R = {}
     for name in ("prep", "within_day", "cross_day", "fewshot", "stress", "closed_loop", "latency",
-                 "channel_stability", "closed_loop_ablation"):
+                 "channel_stability", "closed_loop_ablation", "kalman", "remap", "clda"):
         p = ctx.res / f"{name}.json"
         if p.exists():
             R[name] = json.loads(p.read_text())
@@ -356,6 +381,8 @@ def export_all(ctx) -> None:
         traces = pickle.load(open(ctx.ckpt / "webgrid_traces.pkl", "rb"))
         fig_webgrid_trace(ctx, traces, cl["grid"], wc.side_mm, wc.center)
         (site / "webgrid.json").write_text(json.dumps(build_webgrid(cl, traces, wc.side_mm, wc.center)))
+    if "clda" in R:
+        fig_clda(ctx, R["clda"])
     traj = build_trajectories(ctx)
     fig_traj(ctx, traj)
     (site / "trajectories.json").write_text(json.dumps(traj))
@@ -386,6 +413,7 @@ def headline(R: dict) -> dict:
     CL = R.get("closed_loop", {})
     rows = {"wiener": ("wiener", "wiener_rc", "wiener_fixed", "wiener"),
             "kalman": ("kalman", "kalman_rc", "kalman_fixed", "kalman"),
+            "kalman_velocity_only_v1": ("kalman_v1", "kalman_v1_rc", "kalman_v1_fixed", "kalman_v1"),
             "fa_stabiliser": ("fa", "fa_aligned", "fa_fixed", None),
             "gru": ("gru", "gru_rc", "gru_fixed", "gru"),
             "sld_proposed": ("sld", "sld_aligned", "sld_fixed", "sld")}
@@ -396,6 +424,10 @@ def headline(R: dict) -> dict:
         variants = [("cross_day_r2", ck), ("cross_day_r2_fixed", fk)]
         if name == "sld_proposed":
             variants.append(("cross_day_r2_recentred", "sld_rc"))
+            variants.append(("cross_day_r2_recentred_remap", "sld_rc_remap"))
+            variants.append(("cross_day_r2_remap", "sld_aligned_remap"))
+        elif ck and f"{ck}_remap" in C:
+            variants.append(("cross_day_r2_remap", f"{ck}_remap"))
         for label, key in variants:
             if key in C:
                 per_day = np.array([float(np.mean(v)) for v in C[key]])
@@ -405,11 +437,19 @@ def headline(R: dict) -> dict:
         if bk and bk in CL.get("main", {}):
             r["webgrid_bps_sim"] = {"mean": CL["main"][bk]["mean"], "std": CL["main"][bk]["std"],
                                     "grid": CL["grid"]}
+            if "ci95" in CL["main"][bk]:
+                r["webgrid_bps_sim"].update({"ci95": CL["main"][bk]["ci95"], "n_sessions": CL["main"][bk]["n"]})
         if bk and bk in R.get("latency", {}):
             r["latency_ms_per_bin_cpu"] = R["latency"][bk]
         out["decoders"][name] = r
     if "oracle" in CL.get("main", {}):
         out["oracle_webgrid_bps_sim"] = {"mean": CL["main"]["oracle"]["mean"], "std": CL["main"]["oracle"]["std"]}
+        if "ci95" in CL["main"]["oracle"]:
+            out["oracle_webgrid_bps_sim"]["ci95"] = CL["main"]["oracle"]["ci95"]
+    if CL.get("paired_tests"):
+        out["webgrid_paired_tests"] = {k: {"diff_mean": v["diff_mean"], "diff_ci95": v["diff_ci95"],
+                                           "p_holm": v["p_holm"], "significant": v["significant"]}
+                                       for k, v in CL["paired_tests"].items()}
     if flagged:
         out["remapped_days"] = sorted(flagged)
     if "stress" in R:
@@ -423,13 +463,45 @@ def headline(R: dict) -> dict:
         out["fewshot_r2_mean"] = {k: {n: float(np.mean(v)) for n, v in d.items()}
                                   for k, d in R["fewshot"]["methods"].items()}
     if CL.get("refit"):
-        out["refit_bps_sim"] = {k: {"before": v["before"]["mean"], "after": v["after"]["mean"]}
+        out["refit_bps_sim"] = {k: {"before": v["before"]["mean"], "after": v["after"]["mean"],
+                                    **({"p_wilcoxon": v["paired"]["p_wilcoxon"],
+                                        "diff_ci95": v["paired"]["diff_ci95"]} if "paired" in v else {})}
                                 for k, v in CL["refit"].items()}
     if CL.get("crossday"):
         out["crossday_bps_sim_mean"] = {k: float(np.mean([x["mean"] for x in v]))
                                         for k, v in CL["crossday"]["methods"].items()}
     if "closed_loop_ablation" in R:
         out["ablation_bps_sim"] = {k: {"mean": v["mean"], "std": v["std"]} for k, v in R["closed_loop_ablation"].items()}
+    if "kalman" in R:
+        K = R["kalman"]
+        out["kalman_strong"] = {"config": K["best"], "anchor_val_r2": K["best_val_r2"],
+                                "best_val_r2_by_state_order": K["best_val_by_order"],
+                                "best_val_r2_by_sqrt": K["best_val_by_sqrt"],
+                                "within_day_r2_per_day_fit": K["within_day_per_day"]["mean"]}
+    if "remap" in R:
+        RM = R["remap"]
+        days = {}
+        for n, rec in RM["days"].items():
+            if rec.get("changed"):
+                days[n] = {"found": rec["name"], **{f"{k}_before": float(np.mean(v)) for k, v in rec["before"].items()},
+                           **{f"{k}_after": float(np.mean(v)) for k, v in rec["after"].items()}}
+        out["channel_rematch"] = {"changed_days": days,
+                                  "n_days_identity_kept": sum(1 for r in RM["days"].values() if not r.get("changed"))}
+        syn = RM.get("synthetic", {})
+        if "structured" in syn:
+            out["channel_rematch"]["synthetic_structured"] = {k: v for k, v in syn["structured"].items() if k != "rows"}
+        if "random" in syn:
+            out["channel_rematch"]["synthetic_random"] = syn["random"]["methods"]
+    if "clda" in R:
+        out["clda_bps_sim"] = {}
+        for k, rec in R["clda"]["decoders"].items():
+            r0, rN = rec["rounds"][0], rec["rounds"][-1]
+            out["clda_bps_sim"][k] = {"before": r0["bps"]["mean"], "after": rN["bps"]["mean"],
+                                      "after_ci95": rN["bps"]["ci95"], "rounds": len(rec["rounds"]) - 1,
+                                      "p_wilcoxon_vs_before": rN["paired_vs_before"]["p_wilcoxon"],
+                                      "diff_ci95": rN["paired_vs_before"]["diff_ci95"],
+                                      "offline_r2_before": r0["offline_r2"], "offline_r2_after": rN["offline_r2"],
+                                      "best_round": int(np.argmax([x["bps"]["mean"] for x in rec["rounds"]]))}
     if "prep" in R:
         out["lag_ms"] = R["prep"]["lag_ms"]
         out["anchor_days"] = R["prep"]["anchor_days"]

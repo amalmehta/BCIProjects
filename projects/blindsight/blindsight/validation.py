@@ -30,8 +30,11 @@ from .simulator import PhospheneSimulator, SimParams, TemporalSimulator, sample_
 # inspection) in the dynaphos repository: test/data/Fernandez_2021_fig6A.csv.
 FERNANDEZ_6A_UA = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90, 100], dtype=float)
 FERNANDEZ_6A_BRIGHTNESS = np.array([0.04, 0.08, 0.2, 0.36, 0.48, 0.8, 0.8, 0.8, 1.0, 0.92])
-# Fernandez et al. (2021) abstract: mean single-electrode threshold 66.8 +/- 36.5 uA.
+# Fernandez et al. (2021): mean single-electrode threshold 66.8 +/- 36.5 uA (abstract); 88 of 96
+# electrodes evoked phosphenes, thresholds ranged 7-128 uA, and Fig. 6A averages brightness over 10
+# single electrodes (full text).
 FERNANDEZ_THRESHOLD_UA = (66.8, 36.5)
+FERNANDEZ_THRESHOLD_RANGE_UA = (7.0, 128.0)
 
 
 def bosking_size_mm(i_ua: np.ndarray, md: float = 0.7, i_half: float = 40.0, slope: float = 0.08) -> np.ndarray:
@@ -45,7 +48,9 @@ def run_validation(cfg: dict, log=print) -> dict:
     setup_style()
     out_dir = Path(cfg["results_dir"])
     fig_dir = out_dir / "figures"
-    p = SimParams(fov_deg=cfg["sim"]["fov_deg"], resolution=cfg["sim"]["resolution"])
+    from .config import sim_params
+
+    p = sim_params(cfg)
     sim = PhospheneSimulator(p)
     model = p.model
     res: dict = {}
@@ -96,34 +101,51 @@ def run_validation(cfg: dict, log=print) -> dict:
     savefig(fig, fig_dir / "fig_sim_size.png")
 
     # 3. Brightness vs. current --------------------------------------------------------------
+    # Three readings of the model against Fig. 6A (which averages 10 single electrodes):
+    #   mean-threshold electrode (the first-round definition, key brightness_r2_vs_fernandez_fig6a);
+    #   supra-threshold brightness function (sigmoid without the detection gate);
+    #   population mean over electrodes (gate at each electrode's own threshold).
     amps_t = torch.linspace(0, 120, 241)
     act = sim.activation(amps_t)
-    bright = torch.sigmoid(p.brightness_slope * (act - p.a50)) * (act > p.threshold_mean).float()
-    model_at = np.interp(FERNANDEZ_6A_UA, amps_t.numpy(), bright.numpy())
-    ss_res = np.sum((FERNANDEZ_6A_BRIGHTNESS - model_at) ** 2)
-    ss_tot = np.sum((FERNANDEZ_6A_BRIGHTNESS - FERNANDEZ_6A_BRIGHTNESS.mean()) ** 2)
-    res["brightness_r2_vs_fernandez_fig6a"] = float(1 - ss_res / ss_tot)
-    # Threshold distribution (current needed to reach each electrode's activation threshold).
+    sig = torch.sigmoid(p.brightness_slope * (act - p.a50))
+    bright = sig * (act > p.threshold_mean).float()
     rng = np.random.default_rng(0)
-    thr_a = np.clip(rng.normal(p.threshold_mean, p.threshold_sd, 20000), 0, None)
+    thr_a = p.sample_thresholds(rng, 20000)
+    pop = (sig[:, None] * (act[:, None] > torch.as_tensor(thr_a, dtype=torch.float32)[None]).float()).mean(1)
+
+    def r2(curve):
+        model_at = np.interp(FERNANDEZ_6A_UA, amps_t.numpy(), curve.numpy())
+        ss_res = np.sum((FERNANDEZ_6A_BRIGHTNESS - model_at) ** 2)
+        return float(1 - ss_res / np.sum((FERNANDEZ_6A_BRIGHTNESS - FERNANDEZ_6A_BRIGHTNESS.mean()) ** 2))
+    res["brightness_r2_vs_fernandez_fig6a"] = r2(bright)
+    res["brightness_r2_suprathreshold_vs_fig6a"] = r2(sig)
+    res["brightness_r2_population_mean_vs_fig6a"] = r2(pop)
+    res["threshold_model"] = p.threshold_model
+    # Threshold distribution (current needed to reach each electrode's activation threshold).
     thr_ua = p.threshold_current_ua(thr_a)
     res["threshold_current_ua"] = {"mean": float(thr_ua.mean()), "sd": float(thr_ua.std()),
                                    "p5": float(np.percentile(thr_ua, 5)), "p95": float(np.percentile(thr_ua, 95)),
-                                   "fernandez2021_mean_sd": list(FERNANDEZ_THRESHOLD_UA)}
+                                   "min": float(thr_ua.min()), "frac_above_max_current": float((thr_ua > p.max_current_ua).mean()),
+                                   "fernandez2021_mean_sd": list(FERNANDEZ_THRESHOLD_UA),
+                                   "fernandez2021_range": list(FERNANDEZ_THRESHOLD_RANGE_UA)}
     fig, axes = plt.subplots(1, 2, figsize=(FIGSIZE[0], FIGSIZE[1] * 0.9))
     ax = axes[0]
-    ax.plot(amps_t, bright, color=COLORS[0], lw=2, label="Model (mean threshold)")
+    ax.plot(amps_t, sig, color=COLORS[0], lw=2, label=f"Supra-threshold (R² = {res['brightness_r2_suprathreshold_vs_fig6a']:.2f})")
+    ax.plot(amps_t, pop, color=COLORS[2], lw=2, ls="--", label=f"Mean over electrodes (R² = {res['brightness_r2_population_mean_vs_fig6a']:.2f})")
+    ax.plot(amps_t, bright, color="0.55", lw=1.2, ls=":", label=f"Mean-threshold electrode (R² = {res['brightness_r2_vs_fernandez_fig6a']:.2f})")
     ax.scatter(FERNANDEZ_6A_UA, FERNANDEZ_6A_BRIGHTNESS, color=COLORS[1], zorder=3, s=22,
                label="Fernández 2021 Fig. 6A")
     ax.set_xlabel("Current (µA), 166 ms train"); ax.set_ylabel("Relative brightness")
-    ax.set_title(f"Brightness (R² = {res['brightness_r2_vs_fernandez_fig6a']:.2f})"); ax.legend(frameon=False, fontsize=8, loc="upper left")
+    ax.set_title("Brightness vs. current"); ax.legend(frameon=False, fontsize=7, loc="upper left")
     ax = axes[1]
-    ax.hist(thr_ua, bins=60, color=COLORS[0], alpha=0.8, density=True, label="Model electrodes")
-    m, s = FERNANDEZ_THRESHOLD_UA
+    ax.hist(thr_ua, bins=80, range=(0, 250), color=COLORS[0], alpha=0.8, density=True, label="Model electrodes")
+    m, s_ = FERNANDEZ_THRESHOLD_UA
     ax.axvline(m, color=COLORS[1], lw=2, label=f"Fernández 2021 mean {m} µA")
-    ax.axvspan(m - s, m + s, color=COLORS[1], alpha=0.12, label="± 1 sd")
+    ax.axvspan(m - s_, m + s_, color=COLORS[1], alpha=0.12, label="± 1 sd")
+    ax.axvline(thr_ua.mean(), color=COLORS[0], lw=1.2, ls="--", label=f"Model mean {thr_ua.mean():.1f} µA")
+    ax.axvline(p.max_current_ua, color="0.4", lw=1, ls=":", label="Current ceiling")
     ax.set_xlabel("Threshold current (µA)"); ax.set_ylabel("Density"); ax.set_title("Detection thresholds")
-    ax.legend(frameon=False, fontsize=8)
+    ax.legend(frameon=False, fontsize=7)
     savefig(fig, fig_dir / "fig_sim_brightness_threshold.png")
 
     # 4. Habituation -------------------------------------------------------------------------

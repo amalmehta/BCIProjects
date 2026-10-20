@@ -117,12 +117,16 @@ class SafetyLayer(nn.Module):
         self.max_current_ua = max_current_ua
         self.max_active = max_active
 
+    def keep_mask(self, amp: torch.Tensor) -> torch.Tensor:
+        """(B, N) float mask of the electrodes the top-k rule keeps (ties at the k-th value kept)."""
+        if self.max_active is None or self.max_active >= amp.shape[1]:
+            return torch.ones_like(amp)
+        kth = torch.topk(amp.detach(), self.max_active, dim=1).values[:, -1:]
+        return (amp.detach() >= kth).float()
+
     def forward(self, amp: torch.Tensor) -> torch.Tensor:
         amp = amp.clamp(0.0, self.max_current_ua)
-        if self.max_active is not None and self.max_active < amp.shape[1]:
-            kth = torch.topk(amp.detach(), self.max_active, dim=1).values[:, -1:]
-            amp = amp * (amp.detach() >= kth).float()
-        return amp
+        return amp * self.keep_mask(amp)
 
 
 class _SamplingBaseline(nn.Module):
@@ -336,7 +340,7 @@ class ThresholdAwareEncoder(nn.Module):
         n_feat = k + 2 + (2 if temporal else 0)
         self.head = nn.Sequential(nn.Linear(n_feat, hidden), nn.ReLU(), nn.Linear(hidden, 2))
         with torch.no_grad():
-            self.head[2].bias.copy_(torch.tensor([2.0, 0.0]))  # start with every usable electrode gated on
+            self.head[2].bias.copy_(torch.tensor([0.0, 0.0]))  # gates start undecided (about half on)
         self.max_current_ua, self.margin = ctx.max_current_ua, margin_ua
 
     def usable(self, cond: Condition) -> torch.Tensor:
@@ -350,7 +354,9 @@ class ThresholdAwareEncoder(nn.Module):
         cov = gaussian_blur(splat(u, self.idx_full, self.w_full, self.res), self.blur)
         return (cov / (self.density + 1e-6)).clamp(0.0, 1.0)
 
-    def forward(self, x: torch.Tensor, cond: Condition, coverage: torch.Tensor | None = None) -> torch.Tensor:
+    def parts(self, x: torch.Tensor, cond: Condition, coverage: torch.Tensor | None = None):
+        """(gate, level): gate in {0, 1} (straight-through in training) and the supra-threshold
+        current each electrode would get if on (0 for unusable electrodes). Amplitude = gate * level."""
         b = x.shape[0]
         cov = self.coverage(cond) if coverage is None else coverage
         h = torch.cat([x, self.coords.expand(b, -1, -1, -1), cov.expand(b, -1, -1, -1)], 1)
@@ -375,7 +381,11 @@ class ThresholdAwareEncoder(nn.Module):
             gate = gate + gate_soft - gate_soft.detach()
         t = thr.clamp(max=imax).expand(b, n)
         level = t + self.margin + torch.sigmoid(z[..., 1]) * (imax - t - self.margin).clamp(min=0.0)
-        return gate * usable * level
+        return gate, usable * level
+
+    def forward(self, x: torch.Tensor, cond: Condition, coverage: torch.Tensor | None = None) -> torch.Tensor:
+        gate, level = self.parts(x, cond, coverage)
+        return gate * level
 
 
 class Conditioned(nn.Module):

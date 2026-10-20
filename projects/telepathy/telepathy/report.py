@@ -14,9 +14,10 @@ from pathlib import Path
 import numpy as np
 
 PROJECT = Path(__file__).resolve().parents[1]
-LAT_NAMES = {"wiener": "Wiener filter", "kalman": "Kalman filter", "fa": "FA stabiliser", "gru": "GRU",
+LAT_NAMES = {"wiener": "Wiener filter", "kalman": "Kalman filter (PVA)", "kalman_v1": "Kalman filter (v1, velocity)", "fa": "FA stabiliser", "gru": "GRU",
              "sld": "SLD (GRU backbone)", "sld_transformer": "SLD (transformer backbone)"}
-DISPLAY = {"oracle": "Oracle", "wiener": "Wiener", "kalman": "Kalman", "gru": "GRU", "sld": "SLD"}
+DISPLAY = {"oracle": "Oracle", "wiener": "Wiener", "kalman": "Kalman (PVA)", "kalman_v1": "Kalman v1", "gru": "GRU",
+           "sld": "SLD", "sld_head": "SLD (adapter+head)"}
 
 
 def _f(x: float, nd: int = 3) -> str:
@@ -33,6 +34,7 @@ _WORDS = {0: "Zero", 1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "S
 
 def _macro_name(k: str) -> str:
     """LaTeX macro names cannot contain digits: 'sweepGruG10' -> 'sweepGruGTen'."""
+    k = re.sub(r"_(\w)", lambda m: m.group(1).upper(), k)
     return re.sub(r"\d+", lambda m: _WORDS[int(m.group())], k)
 
 
@@ -77,7 +79,8 @@ def build(res: Path, paper: Path) -> None:
 
     for key in ("sld_rc", "sld_aligned", "gru_rc", "gru_aug_rc", "wiener_rc", "wiener_fixed", "fa_aligned",
                 "kalman_rc", "sld_fixed", "gru_fixed", "sld_no_adapters_rc", "sld_no_aug_rc", "sld_no_ssl_rc",
-                "sld_transformer_rc"):
+                "sld_transformer_rc", "kalman_v1_rc", "kalman_v1_fixed", "kalman_fixed", "wiener_rc_remap",
+                "kalman_rc_remap", "gru_rc_remap", "sld_rc_remap", "sld_aligned_remap"):
         name = "".join(w.capitalize() for w in key.split("_"))
         macros[f"keep{name}"] = _f(keep_mean(key))
         macros[f"all{name}"] = _f(cross_mean(key))
@@ -134,18 +137,117 @@ def build(res: Path, paper: Path) -> None:
         macros[f"simAbl{name}"] = _f(v["mean"], 2)
         macros[f"simAbl{name}Sd"] = _f(v["std"], 2)
     if CL:
-        for k in ("sld", "gru", "wiener", "kalman", "oracle"):
-            macros[f"{k}Bps"] = _f(CL["main"][k]["mean"], 2)
+        for k in ("sld", "gru", "wiener", "kalman", "oracle", "kalman_v1"):
+            if k in CL["main"]:
+                macros[_macro_name(k.replace("_v1", "VOne")) + "Bps"] = _f(CL["main"][k]["mean"], 2)
         macros["noiseScale"] = f"{CL['encoder']['noise_scale']:g}"
 
     tables = paper / "tables"
     tables.mkdir(exist_ok=True)
+    # ---- improvement round 2: strong Kalman, channel re-matching, CLDA, paired statistics
+    K = J.get("kalman", {})
+    if K:
+        b = K["best"]
+        macros["kfSmooth"] = str(b["smooth_bins"] * 20)
+        macros["kfDelay"] = str(b["obs_delay"] * 20)
+        macros["kfOrder"] = {0: "velocity", 1: "position--velocity", 2: "position--velocity--acceleration"}[b["order"]]
+        macros["kfQ"] = f"{b['q_scale']:g}"
+        macros["kfSqrt"] = "with" if b["sqrt"] else "without"
+        for o, v in K["best_val_by_order"].items():
+            macros[f"kfValOrder{o}"] = _f(v)
+        for o, v in K["best_val_by_sqrt"].items():
+            macros[f"kfValSqrt{o.capitalize()}"] = _f(v)
+        macros["kfWithin"] = _f(W["kalman"]["mean"])
+        macros["kfPerDayWithin"] = _f(W["kalman_per_day"]["mean"])
+        macros["kfVOneWithin"] = _f(W["kalman_v1"]["mean"])
+    RM = J.get("remap", {})
+    if RM:
+        macros["remapCands"] = str(RM["n_candidates"])
+        ch = [(n, r) for n, r in RM["days"].items() if r.get("changed")]
+        macros["remapNChanged"] = str(len(ch))
+        macros["remapNKept"] = str(len(RM["days"]) - len(ch))
+        for n, r in ch:
+            i = C["days"].index(n)
+            tag = "A" if C["day_index"][i] < 100 else "B"
+            macros[f"rm{tag}Found"] = r["name"].replace("_", "\\_")
+            macros[f"rm{tag}Score"] = _f(r["score"], 2)
+            macros[f"rm{tag}IdScore"] = _f(r["identity_score"], 2)
+            for k, v in r["after"].items():
+                nm = "".join(w.capitalize() for w in k.split("_"))
+                macros[f"rm{tag}{nm}"] = _f(float(np.mean(v)))
+            macros[f"rm{tag}SldAlignedSeeds"] = ", ".join(_f(v) for v in r["after"]["sld_aligned"])
+            macros[f"rm{tag}SldRcSeeds"] = ", ".join(_f(v) for v in r["after"]["sld_rc"])
+        syn = RM.get("synthetic", {})
+        if "structured" in syn:
+            st = syn["structured"]
+            macros["rmSynNDays"] = str(len(syn["days"]))
+            macros["rmSynN"] = str(len(st["rows"]))
+            for k in ("recovery", "wiener_rc_shuffled", "wiener_rc_matched", "sld_rc_shuffled", "sld_rc_matched"):
+                macros["rmSyn" + "".join(w.capitalize() for w in k.split("_"))] = _f(st[k], 2 if k == "recovery" else 3)
+        if "random" in syn:
+            rows = ["\\begin{tabular}{lcccccc}", "\\toprule",
+                    "Channels shuffled & \\multicolumn{2}{c}{recovered (moved ch.)} & \\multicolumn{3}{c}{SLD re-centred $R^2$} & Wiener $R^2$ \\\\",
+                    " & structured & +Hungarian & none & structured & +Hungarian & +Hungarian \\\\", "\\midrule"]
+            for f_ in syn["random"]["fracs"]:
+                m = syn["random"]["methods"][str(f_)]
+                rows.append(f"{int(round(100 * f_))}\\,\\% & {m['structured_recovery_moved']:.2f} & {m['hungarian_recovery_moved']:.2f} & "
+                            f"{m['sld_rc_shuffled']:.3f} & {m['structured_sld_rc']:.3f} & {m['hungarian_sld_rc']:.3f} & "
+                            f"{m['hungarian_wiener_rc']:.3f} \\\\")
+                macros[f"rmRand{int(round(100 * f_))}HungRec"] = _f(m["hungarian_recovery_moved"], 2)
+                macros[f"rmRand{int(round(100 * f_))}HungSld"] = _f(m["hungarian_sld_rc"])
+                macros[f"rmRand{int(round(100 * f_))}NoneSld"] = _f(m["sld_rc_shuffled"])
+            rows += ["\\bottomrule", "\\end{tabular}"]
+            (tables / "remap_random.tex").write_text("\n".join(rows) + "\n")
+    if CL and "paired_tests" in CL:
+        macros["nSimSessions"] = str(CL["n_sessions"])
+        for k, v in CL["main"].items():
+            if "ci95" in v:
+                nm = "".join(w.capitalize() for w in k.split("_"))
+                macros[f"ci{nm}"] = f"[{v['ci95'][0]:.2f}, {v['ci95'][1]:.2f}]"
+        rows = ["\\begin{tabular}{lccc}", "\\toprule", "Comparison & $\\Delta$ bits/s [95\\,\\% CI] & $p_{\\mathrm{Holm}}$ & sig. \\\\",
+                "\\midrule"]
+        for k, v in sorted(CL["paired_tests"].items(), key=lambda kv: kv[1]["p_holm"]):
+            a, b_ = k.split(" vs ")
+            rows.append(f"{DISPLAY.get(a, a)} $-$ {DISPLAY.get(b_, b_)} & {v['diff_mean']:+.2f} "
+                        f"[{v['diff_ci95'][0]:+.2f}, {v['diff_ci95'][1]:+.2f}] & {v['p_holm']:.2g} & "
+                        f"{'yes' if v['significant'] else 'no'} \\\\")
+        rows += ["\\bottomrule", "\\end{tabular}"]
+        (tables / "paired.tex").write_text("\n".join(rows) + "\n")
+        macros["nSigPairs"] = str(sum(v["significant"] for v in CL["paired_tests"].values()))
+        macros["nPairs"] = str(len(CL["paired_tests"]))
+        for k in ("wiener", "kalman"):
+            if "paired" in CL.get("refit", {}).get(k, {}):
+                macros[f"{k}RefitP"] = f"{CL['refit'][k]['paired']['p_wilcoxon']:.2g}"
+                macros[f"{k}RefitCi"] = "[{:.2f}, {:.2f}]".format(*CL["refit"][k]["after"]["ci95"])
+    CD = J.get("clda", {})
+    if CD:
+        rows = ["\\begin{tabular}{lcccccc}", "\\toprule",
+                "Decoder & \\multicolumn{2}{c}{bits/s} & $\\Delta$ [95\\,\\% CI] & $p$ & \\multicolumn{2}{c}{offline $R^2$} \\\\",
+                " & before & after & & & before & after \\\\", "\\midrule"]
+        for k, rec in CD["decoders"].items():
+            r0, rN = rec["rounds"][0], rec["rounds"][-1]
+            pv = rN["paired_vs_before"]
+            rows.append(f"{DISPLAY.get(k, k)} & {r0['bps']['mean']:.2f} & {rN['bps']['mean']:.2f} & "
+                        f"{pv['diff_mean']:+.2f} [{pv['diff_ci95'][0]:+.2f}, {pv['diff_ci95'][1]:+.2f}] & {pv['p_wilcoxon']:.2g} & "
+                        f"{r0['offline_r2']:.3f} & {rN['offline_r2']:.3f} \\\\")
+            nm = "".join(w.capitalize() for w in k.split("_"))
+            macros[f"clda{nm}Before"] = _f(r0["bps"]["mean"], 2)
+            macros[f"clda{nm}After"] = _f(rN["bps"]["mean"], 2)
+            macros[f"clda{nm}Best"] = _f(max(x["bps"]["mean"] for x in rec["rounds"]), 2)
+            macros[f"clda{nm}P"] = f"{pv['p_wilcoxon']:.2g}"
+            macros[f"clda{nm}RBefore"] = _f(r0["offline_r2"])
+            macros[f"clda{nm}RAfter"] = _f(rN["offline_r2"])
+        rows += ["\\bottomrule", "\\end{tabular}"]
+        (tables / "clda.tex").write_text("\n".join(rows) + "\n")
+        macros["cldaRounds"] = str(CD["config"]["rounds"])
+        macros["cldaSessions"] = str(CD["config"]["sessions_per_round"])
     # ---- Table 1: main results
     rows = [
         ("Wiener filter (per day)", "wiener_per_day", None, None, None),
-        ("Kalman filter (per day)", "kalman_per_day", None, None, None),
+        ("Kalman PVA (per day)", "kalman_per_day", None, None, None),
         ("Wiener filter (5 days)", "wiener", "wiener_fixed", "wiener_rc", "wiener"),
-        ("Kalman filter (5 days)", "kalman", "kalman_fixed", "kalman_rc", "kalman"),
+        ("Kalman v1, velocity state (5 days)", "kalman_v1", "kalman_v1_fixed", "kalman_v1_rc", "kalman_v1"),
+        ("Kalman PVA (5 days)", "kalman", "kalman_fixed", "kalman_rc", "kalman"),
         ("FA stabiliser~\\cite{degenhart2020stabilization}", "fa", "fa_fixed", "fa_aligned", None),
         ("GRU", "gru", "gru_fixed", "gru_rc", "gru"),
         ("SLD (proposed), re-centred", "sld", "sld_fixed", "sld_rc", "sld"),
@@ -209,7 +311,7 @@ def build(res: Path, paper: Path) -> None:
     if CL:
         out = ["\\begin{tabular}{lccccc}", "\\toprule",
                "Decoder & gain & smooth & hold (s) & click bits/s & dwell bits/s \\\\", "\\midrule"]
-        for k in ("oracle", "wiener", "kalman", "gru", "sld"):
+        for k in [k for k in ("oracle", "wiener", "kalman_v1", "kalman", "gru", "sld") if k in CL["tuned"]]:
             t = CL["tuned"][k]
             out.append(f"{DISPLAY[k]} & {t['gain']:g} & {t['smooth']:g} & {t['hold']:g} & "
                        f"{_pm(CL['main'][k]['mean'], CL['main'][k]['std'], 2)} & "

@@ -22,6 +22,10 @@ data:
   heldout_session: t15.2024.03.15
   bin_factor: 3          # CPU: 60 ms bins (published: 20 ms) -> 300 ms patches every 120 ms (published: 280 ms every 80 ms)
   dev_fraction: 0.1
+  # Re-standardise after binning: averaging 3 z-scored bins shrinks the feature std to ~0.63,
+  # so the published white-noise augmentation (std 1.0, set for unit-variance 20 ms bins) had a
+  # ~1.6x lower SNR than intended. "auto" rescales by 1/std of the training features.
+  input_scale: auto
 
 train:
   batch_size: 32
@@ -30,12 +34,14 @@ train:
   schedule: steps         # cosine decay over steps (equal optimisation budget for every model)
   lr: 0.002
   lr_min_ratio: 0.02
-  warmup_steps: 50
+  warmup_steps: 100        # was 50
   weight_decay: 0.01
   adam_eps: 1.0e-8
-  grad_clip: 10.0
+  grad_clip: 1.0           # was 10 (never active after the first 20 steps; see results/diag)
   eval_every: 50
   inter_ctc_weight: 0.0
+  curriculum_steps: 100    # SortaGrad-style: first 100 steps on the shorter half of the utterances
+  curriculum_frac: 0.5
   amp: true
 
 aug:                     # published Brain-to-Text baseline augmentation
@@ -58,6 +64,7 @@ models:
     bidirectional: false
     per_day: true
     smooth_std: 0.67     # 40 ms, as the published 2 bins of 20 ms
+    blank_bias: 4.0      # initial p(blank) = 0.58, near the frame-level blank prior
   conformer:
     type: conformer
     d_model: 144
@@ -75,39 +82,58 @@ models:
     inter_ctc_layers: [2]
     self_condition: true
     smooth_std: 0.67
+    blank_bias: 4.0
 
 lm:
   min_count: 2
   max_owt_docs: null
 
 eval:
-  n_tune: 100             # dev sentences used to tune LM weights
-  alphas: [0.3, 0.5, 0.8, 1.2]  # n-gram weight
-  betas: [1.0, 2.0, 3.0, 4.0, 5.0]   # word insertion bonus (coordinate search starts at the middle value)
-  betas_lexicon: [-3.0, -2.0, -1.0, 0.0, 1.0, 2.0]
-  gammas: [0.0, 0.25, 0.5, 0.75, 1.0]  # GPT-2 weight
+  # Every decoder hyper-parameter is tuned on the dev split (10% of each training session's
+  # released 'train' trials, 215 sentences), disjoint from the 426 test sentences; test is decoded once.
+  n_tune: all
+  beam: 32                # default beam width (used while tuning alpha/beta)
+  beam_tune: 16           # beam used during the alpha/beta/lexicon search (CPU time)
+  beams: [8, 16, 32, 64]  # final beam-width search
+  beam_max: 128
+  tune_rounds: 2          # coordinate-descent rounds over (alpha, beta)
+  alphas: [0.25, 0.5, 1.0, 2.0]          # n-gram weight (multiplicative grid, extended past an edge optimum)
+  betas: [-2.0, 0.0, 2.0, 4.0, 6.0]      # word insertion bonus
+  betas_lexicon: [-6.0, -4.0, -2.0, 0.0, 2.0]   # lexicon-only word bonus
+  gammas: [0.0, 0.125, 0.25, 0.5, 1.0, 2.0]     # GPT-2 weight
+  rescore_beta_offsets: [-2.0, -1.0, 1.0, 2.0]  # word bonus re-tuned jointly with gamma
   nbest: 10
-  beam: 32
   workers: 2
-  llm_systems: [conformer_aug_s0, gru_baseline_s0]  # GPT-2 rescoring (CPU time: best single models only)
+  n_bootstrap: 10000
+  llm_systems: all        # GPT-2 rescoring for every final system
+  compare:                # paired bootstrap tests (per-sentence edits averaged over the listed seeds)
+    - {name: conformer_vs_gru_seedavg, a: [conformer_aug_s0, conformer_aug_s1, conformer_aug_s2], b: [gru_baseline_s0, gru_baseline_s1, gru_baseline_s2]}
+    - {name: conformer_vs_gru_ensemble, a: [conformer_aug_ens], b: [gru_baseline_ens]}
+    - {name: conformer_ens_vs_best_member, a: [conformer_aug_ens], b: [conformer_aug_s0]}
 
 calibration:
-  base_run: gru_aug_s0
-  n_sentences: [10, 25, 50, 100, 200]
+  base_run: conformer_aug_s0   # set to the best-dev model after training
+  modes: [reuse, day_layer]    # supervised baselines (full fine-tuning was not better last round; see gpu.yaml)
+  n_sentences: [25, 200]
   repeats: 2              # different random subsets of the new day's sentences
   steps: 40
   batch_size: 16
   lr_day: 0.005
   lr_full: 0.0005
+  tta:                    # unsupervised test-time adaptation of the day layer (speech.adapt)
+    coral_shrink: 0.1
+    rounds: 2
+    keep_frac: 0.5
+    steps: 40
 
 robustness:
-  runs: [gru_baseline_s0, gru_aug_s0, conformer_aug_s0]
+  runs: [gru_baseline_s0, conformer_aug_s0]
   drop_fractions: [0.0, 0.1, 0.3, 0.5]
   n_masks: 1              # random electrode subsets per fraction (CPU time)
-  day_swap_runs: [gru_aug_s0, conformer_aug_s0]
+  day_swap_runs: [gru_baseline_s0, conformer_aug_s0]
 
 latency:
-  runs: [gru_aug_s0, gru_bi_aug_s0, conformer_aug_s0]
+  runs: [gru_baseline_s0, gru_bi_aug_s0, conformer_aug_s0]
 
 # Augmentations we add on top of the published recipe (time masking + electrode dropout).
 new_aug: &new_aug
@@ -138,13 +164,14 @@ runs:
     model_overrides: {bidirectional: true}
 
 
-# Order in which run_cpu.sh trains (run, seed); two jobs run concurrently.
+# Order in which run_cpu.sh trains (run, seed); one job at a time on CPU.
 schedule:
   - [gru_baseline, 0]
-  - [gru_aug, 0]
   - [gru_baseline, 1]
+  - [gru_baseline, 2]
   - [conformer_aug, 0]
-  - [gru_aug, 1]
+  - [conformer_aug, 1]
+  - [conformer_aug, 2]
 
 report:
   main_system: conformer_aug_s0  # system shown in decodes.json (best WER)

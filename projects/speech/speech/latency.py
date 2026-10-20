@@ -128,7 +128,9 @@ def main() -> None:
     _init_worker(*map(str, lm_paths(cfg)), cfg["eval"]["beam"])
     lps = post["log_probs"][:30]
     t = time.perf_counter()
-    nb = [_decode_one((lp, weights["alpha"], weights["beta"], cfg["eval"]["nbest"])) for lp in lps]
+    beam = weights.get("beam") or cfg["eval"]["beam"]
+    out["beam_width"] = beam
+    nb = [_decode_one((lp, weights["alpha"], weights["beta"], cfg["eval"]["nbest"], beam)) for lp in lps]
     out["beam_search_ms_per_sentence"] = (time.perf_counter() - t) / len(lps) * 1000
     try:
         from .rescore import GPT2Scorer

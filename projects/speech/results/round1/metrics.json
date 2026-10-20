@@ -1,0 +1,766 @@
+{
+  "note": "All numbers computed in this repository on the Brain-to-Text '25 (Card et al. 2024) data subset in configs/cpu.yaml. PER/WER are corpus-level on the released 'val' split of the 10 training sessions (426 sentences).",
+  "table": [
+    {
+      "model": "gru_baseline",
+      "label": "GRU baseline (published recipe)",
+      "system": "single model",
+      "setting": "greedy (PER)",
+      "metric": "PER",
+      "mean": 0.6015668943350743,
+      "std": 0.17880795824781562,
+      "n": 2
+    },
+    {
+      "model": "gru_baseline",
+      "label": "GRU baseline (published recipe)",
+      "system": "ensemble of 2",
+      "setting": "greedy (PER)",
+      "metric": "PER",
+      "mean": 0.7533145841703496,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "gru_baseline",
+      "label": "GRU baseline (published recipe)",
+      "system": "single model",
+      "setting": "lexicon, no LM",
+      "metric": "WER",
+      "mean": 0.9283141210374639,
+      "std": 0.061133151111228946,
+      "n": 2
+    },
+    {
+      "model": "gru_baseline",
+      "label": "GRU baseline (published recipe)",
+      "system": "ensemble of 2",
+      "setting": "lexicon, no LM",
+      "metric": "WER",
+      "mean": 0.9571325648414986,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "gru_baseline",
+      "label": "GRU baseline (published recipe)",
+      "system": "single model",
+      "setting": "lexicon + 3-gram",
+      "metric": "WER",
+      "mean": 0.809978386167147,
+      "std": 0.20454133475965333,
+      "n": 2
+    },
+    {
+      "model": "gru_baseline",
+      "label": "GRU baseline (published recipe)",
+      "system": "ensemble of 2",
+      "setting": "lexicon + 3-gram",
+      "metric": "WER",
+      "mean": 0.8721181556195965,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "gru_baseline",
+      "label": "GRU baseline (published recipe)",
+      "system": "single model",
+      "setting": "3-gram + GPT-2 rescoring",
+      "metric": "WER",
+      "mean": 0.6653458213256485,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "gru_aug",
+      "label": "GRU + time mask + electrode dropout",
+      "system": "single model",
+      "setting": "greedy (PER)",
+      "metric": "PER",
+      "mean": 0.5968260345520289,
+      "std": 0.147785033175268,
+      "n": 2
+    },
+    {
+      "model": "gru_aug",
+      "label": "GRU + time mask + electrode dropout",
+      "system": "ensemble of 2",
+      "setting": "greedy (PER)",
+      "metric": "PER",
+      "mean": 0.7571715548413017,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "gru_aug",
+      "label": "GRU + time mask + electrode dropout",
+      "system": "single model",
+      "setting": "lexicon, no LM",
+      "metric": "WER",
+      "mean": 0.9212896253602305,
+      "std": 0.05833121501863088,
+      "n": 2
+    },
+    {
+      "model": "gru_aug",
+      "label": "GRU + time mask + electrode dropout",
+      "system": "ensemble of 2",
+      "setting": "lexicon, no LM",
+      "metric": "WER",
+      "mean": 0.9531700288184438,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "gru_aug",
+      "label": "GRU + time mask + electrode dropout",
+      "system": "single model",
+      "setting": "lexicon + 3-gram",
+      "metric": "WER",
+      "mean": 0.8108789625360231,
+      "std": 0.1635311792225373,
+      "n": 2
+    },
+    {
+      "model": "gru_aug",
+      "label": "GRU + time mask + electrode dropout",
+      "system": "ensemble of 2",
+      "setting": "lexicon + 3-gram",
+      "metric": "WER",
+      "mean": 0.8587896253602305,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "conformer_aug",
+      "label": "Causal Conformer + self-cond. CTC",
+      "system": "single model",
+      "setting": "greedy (PER)",
+      "metric": "PER",
+      "mean": 0.3880273202089192,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "conformer_aug",
+      "label": "Causal Conformer + self-cond. CTC",
+      "system": "single model",
+      "setting": "lexicon, no LM",
+      "metric": "WER",
+      "mean": 0.8317723342939481,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "conformer_aug",
+      "label": "Causal Conformer + self-cond. CTC",
+      "system": "single model",
+      "setting": "lexicon + 3-gram",
+      "metric": "WER",
+      "mean": 0.520893371757925,
+      "std": null,
+      "n": 1
+    },
+    {
+      "model": "conformer_aug",
+      "label": "Causal Conformer + self-cond. CTC",
+      "system": "single model",
+      "setting": "3-gram + GPT-2 rescoring",
+      "metric": "WER",
+      "mean": 0.5165706051873199,
+      "std": null,
+      "n": 1
+    }
+  ],
+  "runs": {
+    "gru_baseline": {
+      "0": {
+        "run": "gru_baseline",
+        "seed": 0,
+        "n_params": 5458729,
+        "train_minutes": 38.55087844530741,
+        "steps": 480,
+        "dev_per_greedy": 0.432404181184669,
+        "test_per_greedy": 0.4752109280835677,
+        "best_dev_per": 0.432404181184669,
+        "per_greedy": 0.47513057452792284,
+        "wer_lexicon": 0.8850864553314121,
+        "beta_lexicon": 0.0,
+        "alpha": 0.5,
+        "beta": 2.0,
+        "dev_wer_ngram": 0.5714285714285714,
+        "wer_ngram": 0.6653458213256485,
+        "wer_ngram_ci95": [
+          0.6445364289865522,
+          0.6866206720008964
+        ],
+        "wer_llm": 0.6653458213256485,
+        "gamma": 0.0,
+        "wer_llm_ci95": [
+          0.6445364289865522,
+          0.6866206720008964
+        ],
+        "wer_nbest_oracle": 0.6307636887608069,
+        "wer_ngram_by_corpus": {
+          "Switchboard": {
+            "wer": 0.6197478991596639,
+            "n": 242
+          },
+          "Openwebtext": {
+            "wer": 0.7442528735632183,
+            "n": 40
+          },
+          "Harvard": {
+            "wer": 0.6965174129353234,
+            "n": 25
+          },
+          "Random": {
+            "wer": 1.0101010101010102,
+            "n": 19
+          },
+          "Freq words": {
+            "wer": 0.6614285714285715,
+            "n": 100
+          }
+        }
+      },
+      "1": {
+        "run": "gru_baseline",
+        "seed": 1,
+        "n_params": 5458729,
+        "train_minutes": 61.362371333440144,
+        "steps": 480,
+        "dev_per_greedy": 0.7156794425087109,
+        "test_per_greedy": 0.727922860586581,
+        "best_dev_per": 0.7156794425087109,
+        "per_greedy": 0.7280032141422258,
+        "wer_lexicon": 0.9715417867435159,
+        "beta_lexicon": -3.0,
+        "alpha": 1.2,
+        "beta": 4.0,
+        "dev_wer_ngram": 0.9441707717569786,
+        "wer_ngram": 0.9546109510086456,
+        "wer_ngram_ci95": [
+          0.9475149443491719,
+          0.9615688757919918
+        ],
+        "wer_ngram_by_corpus": {
+          "Switchboard": {
+            "wer": 0.9509803921568627,
+            "n": 242
+          },
+          "Openwebtext": {
+            "wer": 0.9511494252873564,
+            "n": 40
+          },
+          "Harvard": {
+            "wer": 0.9701492537313433,
+            "n": 25
+          },
+          "Random": {
+            "wer": 1.0101010101010102,
+            "n": 19
+          },
+          "Freq words": {
+            "wer": 0.9514285714285714,
+            "n": 100
+          }
+        }
+      }
+    },
+    "gru_aug": {
+      "0": {
+        "run": "gru_aug",
+        "seed": 0,
+        "n_params": 5458729,
+        "train_minutes": 39.01812346378962,
+        "steps": 480,
+        "dev_per_greedy": 0.4569686411149826,
+        "test_per_greedy": 0.49216552832462834,
+        "best_dev_per": 0.4569686411149826,
+        "per_greedy": 0.492326235435918,
+        "wer_lexicon": 0.8800432276657061,
+        "beta_lexicon": -2.0,
+        "alpha": 0.5,
+        "beta": 3.0,
+        "dev_wer_ngram": 0.625615763546798,
+        "wer_ngram": 0.6952449567723343,
+        "wer_ngram_ci95": [
+          0.6729021196937048,
+          0.7166095238971627
+        ],
+        "wer_ngram_by_corpus": {
+          "Switchboard": {
+            "wer": 0.6477591036414566,
+            "n": 242
+          },
+          "Openwebtext": {
+            "wer": 0.7528735632183908,
+            "n": 40
+          },
+          "Harvard": {
+            "wer": 0.7164179104477612,
+            "n": 25
+          },
+          "Random": {
+            "wer": 1.02020202020202,
+            "n": 19
+          },
+          "Freq words": {
+            "wer": 0.7114285714285714,
+            "n": 100
+          }
+        }
+      },
+      "1": {
+        "run": "gru_aug",
+        "seed": 1,
+        "n_params": 5458729,
+        "train_minutes": 75.69534196456273,
+        "steps": 466,
+        "dev_per_greedy": 0.6780487804878049,
+        "test_per_greedy": 0.701245480112495,
+        "best_dev_per": 0.6780487804878049,
+        "per_greedy": 0.7013258336681398,
+        "wer_lexicon": 0.962536023054755,
+        "beta_lexicon": -3.0,
+        "alpha": 0.5,
+        "beta": 3.0,
+        "dev_wer_ngram": 0.9146141215106732,
+        "wer_ngram": 0.9265129682997119,
+        "wer_ngram_ci95": [
+          0.9154578139457923,
+          0.9374338833634719
+        ],
+        "wer_ngram_by_corpus": {
+          "Switchboard": {
+            "wer": 0.9278711484593838,
+            "n": 242
+          },
+          "Openwebtext": {
+            "wer": 0.9425287356321839,
+            "n": 40
+          },
+          "Harvard": {
+            "wer": 0.8407960199004975,
+            "n": 25
+          },
+          "Random": {
+            "wer": 1.0808080808080809,
+            "n": 19
+          },
+          "Freq words": {
+            "wer": 0.9185714285714286,
+            "n": 100
+          }
+        }
+      }
+    },
+    "conformer_aug": {
+      "0": {
+        "run": "conformer_aug",
+        "seed": 0,
+        "n_params": 4993097,
+        "train_minutes": 55.73373810450236,
+        "steps": 480,
+        "dev_per_greedy": 0.3552264808362369,
+        "test_per_greedy": 0.3879469666532744,
+        "best_dev_per": 0.3552264808362369,
+        "per_greedy": 0.3880273202089192,
+        "wer_lexicon": 0.8317723342939481,
+        "beta_lexicon": -3.0,
+        "alpha": 0.8,
+        "beta": 3.0,
+        "dev_wer_ngram": 0.3973727422003284,
+        "wer_ngram": 0.520893371757925,
+        "wer_ngram_ci95": [
+          0.4966632736632736,
+          0.5441358058963967
+        ],
+        "wer_llm": 0.5165706051873199,
+        "gamma": 0.75,
+        "wer_llm_ci95": [
+          0.49209516899089195,
+          0.5398953488372092
+        ],
+        "wer_nbest_oracle": 0.48162824207492794,
+        "wer_ngram_by_corpus": {
+          "Switchboard": {
+            "wer": 0.47198879551820727,
+            "n": 242
+          },
+          "Openwebtext": {
+            "wer": 0.5919540229885057,
+            "n": 40
+          },
+          "Harvard": {
+            "wer": 0.6069651741293532,
+            "n": 25
+          },
+          "Random": {
+            "wer": 0.9494949494949495,
+            "n": 19
+          },
+          "Freq words": {
+            "wer": 0.5,
+            "n": 100
+          }
+        }
+      }
+    }
+  },
+  "ensembles": {
+    "gru_baseline_ens": {
+      "per_greedy": 0.7533145841703496,
+      "wer_lexicon": 0.9571325648414986,
+      "beta_lexicon": 0.0,
+      "alpha": 0.3,
+      "beta": 3.0,
+      "dev_wer_ngram": 0.8210180623973727,
+      "wer_ngram": 0.8721181556195965,
+      "wer_ngram_ci95": [
+        0.857955887742338,
+        0.8851372666589524
+      ],
+      "wer_ngram_by_corpus": {
+        "Switchboard": {
+          "wer": 0.8613445378151261,
+          "n": 242
+        },
+        "Openwebtext": {
+          "wer": 0.8764367816091954,
+          "n": 40
+        },
+        "Harvard": {
+          "wer": 0.8557213930348259,
+          "n": 25
+        },
+        "Random": {
+          "wer": 1.0404040404040404,
+          "n": 19
+        },
+        "Freq words": {
+          "wer": 0.8728571428571429,
+          "n": 100
+        }
+      }
+    },
+    "gru_aug_ens": {
+      "per_greedy": 0.7571715548413017,
+      "wer_lexicon": 0.9531700288184438,
+      "beta_lexicon": 0.0,
+      "alpha": 0.3,
+      "beta": 3.0,
+      "dev_wer_ngram": 0.8210180623973727,
+      "wer_ngram": 0.8587896253602305,
+      "wer_ngram_ci95": [
+        0.844752635673482,
+        0.8722862332837429
+      ],
+      "wer_ngram_by_corpus": {
+        "Switchboard": {
+          "wer": 0.8515406162464986,
+          "n": 242
+        },
+        "Openwebtext": {
+          "wer": 0.8764367816091954,
+          "n": 40
+        },
+        "Harvard": {
+          "wer": 0.8507462686567164,
+          "n": 25
+        },
+        "Random": {
+          "wer": 1.0,
+          "n": 19
+        },
+        "Freq words": {
+          "wer": 0.8471428571428572,
+          "n": 100
+        }
+      }
+    }
+  },
+  "calibration": {
+    "settings": {
+      "base_run": "gru_aug_s0",
+      "n_sentences": [
+        10,
+        25,
+        50,
+        100,
+        200
+      ],
+      "repeats": 2,
+      "steps": 40,
+      "batch_size": 16,
+      "lr_day": 0.005,
+      "lr_full": 0.0005
+    },
+    "base_run": "gru_aug_s0",
+    "heldout_session": "t15.2024.03.15",
+    "n_test_sentences": 48,
+    "pool_size": 239,
+    "rows": [
+      {
+        "mode": "reuse",
+        "n_sentences": 0,
+        "repeat": 0,
+        "per": 0.631019387116948,
+        "wer": 0.8176795580110497
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 10,
+        "repeat": 0,
+        "per": 0.6010006253908693,
+        "wer": 0.7762430939226519
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 25,
+        "repeat": 0,
+        "per": 0.5884928080050031,
+        "wer": 0.7513812154696132
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 50,
+        "repeat": 0,
+        "per": 0.5934959349593496,
+        "wer": 0.7513812154696132
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 100,
+        "repeat": 0,
+        "per": 0.5897435897435898,
+        "wer": 0.7486187845303868
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 200,
+        "repeat": 0,
+        "per": 0.5653533458411507,
+        "wer": 0.7209944751381215
+      },
+      {
+        "mode": "full",
+        "n_sentences": 10,
+        "repeat": 0,
+        "per": 0.5953721075672295,
+        "wer": 0.7569060773480663
+      },
+      {
+        "mode": "full",
+        "n_sentences": 25,
+        "repeat": 0,
+        "per": 0.6078799249530957,
+        "wer": 0.7596685082872928
+      },
+      {
+        "mode": "full",
+        "n_sentences": 50,
+        "repeat": 0,
+        "per": 0.6072545340838024,
+        "wer": 0.7624309392265194
+      },
+      {
+        "mode": "full",
+        "n_sentences": 100,
+        "repeat": 0,
+        "per": 0.6066291432145091,
+        "wer": 0.7486187845303868
+      },
+      {
+        "mode": "full",
+        "n_sentences": 200,
+        "repeat": 0,
+        "per": 0.5997498436522827,
+        "wer": 0.7707182320441989
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 10,
+        "repeat": 1,
+        "per": 0.6485303314571608,
+        "wer": 0.8066298342541437
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 25,
+        "repeat": 1,
+        "per": 0.5872420262664165,
+        "wer": 0.7569060773480663
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 50,
+        "repeat": 1,
+        "per": 0.5778611632270169,
+        "wer": 0.7320441988950276
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 100,
+        "repeat": 1,
+        "per": 0.5959974984365228,
+        "wer": 0.7541436464088398
+      },
+      {
+        "mode": "day_layer",
+        "n_sentences": 200,
+        "repeat": 1,
+        "per": 0.5772357723577236,
+        "wer": 0.7375690607734806
+      },
+      {
+        "mode": "full",
+        "n_sentences": 10,
+        "repeat": 1,
+        "per": 0.6285178236397748,
+        "wer": 0.8176795580110497
+      },
+      {
+        "mode": "full",
+        "n_sentences": 25,
+        "repeat": 1,
+        "per": 0.6016260162601627,
+        "wer": 0.7983425414364641
+      },
+      {
+        "mode": "full",
+        "n_sentences": 50,
+        "repeat": 1,
+        "per": 0.5934959349593496,
+        "wer": 0.7734806629834254
+      },
+      {
+        "mode": "full",
+        "n_sentences": 100,
+        "repeat": 1,
+        "per": 0.5947467166979362,
+        "wer": 0.7569060773480663
+      },
+      {
+        "mode": "full",
+        "n_sentences": 200,
+        "repeat": 1,
+        "per": 0.5784865540963102,
+        "wer": 0.7292817679558011
+      }
+    ]
+  },
+  "robustness": {
+    "settings": {
+      "runs": [
+        "gru_baseline_s0",
+        "gru_aug_s0",
+        "conformer_aug_s0"
+      ],
+      "drop_fractions": [
+        0.0,
+        0.1,
+        0.3,
+        0.5
+      ],
+      "n_masks": 1,
+      "day_swap_runs": [
+        "gru_aug_s0",
+        "conformer_aug_s0"
+      ]
+    },
+    "drop_fractions": [
+      0.0,
+      0.1,
+      0.3,
+      0.5
+    ],
+    "n_masks": 1,
+    "per": {
+      "gru_baseline_s0": [
+        0.4752109280835677,
+        0.4805946163117718,
+        0.5102450783447168,
+        0.5358778625954198
+      ],
+      "gru_aug_s0": [
+        0.49216552832462834,
+        0.4995580554439534,
+        0.519485737243873,
+        0.5378867014865408
+      ],
+      "conformer_aug_s0": [
+        0.3879469666532744,
+        0.3979108075532342,
+        0.43415026114905586,
+        0.4773001205303335
+      ]
+    },
+    "day_swap": {
+      "gru_aug_s0": {
+        "own day": 0.49216552832462834,
+        "previous session's layer": 0.5207713941341905,
+        "most distant session's layer": 0.5638408999598232,
+        "identity (no day layer)": 0.5812776215347529
+      },
+      "conformer_aug_s0": {
+        "own day": 0.3879469666532744,
+        "previous session's layer": 0.447408597830454,
+        "most distant session's layer": 0.5300120530333468,
+        "identity (no day layer)": 0.48501406187223783
+      }
+    }
+  },
+  "latency": {
+    "threads": 2,
+    "models": {
+      "gru_aug_s0": {
+        "frames": 140,
+        "hop_ms": 120.0,
+        "full_forward_ms": 74.9149170005694,
+        "sentence_ms": 17040.0,
+        "real_time_factor": 0.004396415316934824,
+        "per_frame_ms": 2.593396385678456,
+        "algorithmic_lookahead_ms": 60.0,
+        "n_params": 5458729,
+        "trained": true
+      },
+      "gru_bi_aug_s0": {
+        "frames": 140,
+        "hop_ms": 120.0,
+        "full_forward_ms": 160.93479600385763,
+        "sentence_ms": 17040.0,
+        "real_time_factor": 0.009444530281916528,
+        "per_frame_ms": null,
+        "algorithmic_lookahead_ms": "end of sentence",
+        "latency_after_sentence_end_ms": 160.93479600385763,
+        "n_params": 8421417,
+        "trained": false
+      },
+      "conformer_aug_s0": {
+        "frames": 140,
+        "hop_ms": 120.0,
+        "full_forward_ms": 46.3072840066161,
+        "sentence_ms": 17040.0,
+        "real_time_factor": 0.002717563615411743,
+        "per_frame_ms": 0.33076631433297216,
+        "per_frame_ms_recompute_window64": 34.1815699939616,
+        "algorithmic_lookahead_ms": 60.0,
+        "n_params": 4993097,
+        "trained": true
+      }
+    },
+    "beam_search_ms_per_sentence": 209.7960282000713,
+    "gpt2_rescore_ms_per_sentence": 960.2933331669192
+  },
+  "language_model": {
+    "corpus_sentences": 396216,
+    "corpus_words": 5667376,
+    "task_train_sentences": 2162,
+    "removed_eval_overlap": 68,
+    "vocab_size": 44485,
+    "eval_oov_rate": 0.0013392857142857143,
+    "trigrams": 3502984
+  }
+}

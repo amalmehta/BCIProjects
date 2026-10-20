@@ -52,19 +52,42 @@ def build_metrics(cfg: dict, res: Path) -> dict:
             agg = _ms([v.get(key) for v in seeds.values()])
             if agg:
                 table.append({"model": run, "label": LABELS.get(run, run), "system": "single model",
-                              "setting": setting, "metric": "PER" if key == "per_greedy" else "WER", **agg})
+                              "setting": setting, "metric": "PER" if key == "per_greedy" else "WER", **agg,
+                              "per_seed_ci95": {str(sd): v.get(key + "_ci95") for sd, v in seeds.items()}})
             ens = systems.get(f"{run}_ens")
             if ens and ens.get(key) is not None:
                 table.append({"model": run, "label": LABELS.get(run, run), "system": f"ensemble of {len(seeds)}",
                               "setting": setting, "metric": "PER" if key == "per_greedy" else "WER",
-                              "mean": ens[key], "std": None, "n": 1})
+                              "mean": ens[key], "std": None, "n": 1, "ci95": ens.get(key + "_ci95")})
     out = {
         "note": "All numbers computed in this repository on the Brain-to-Text '25 (Card et al. 2024) data subset in configs/cpu.yaml. "
                 "PER/WER are corpus-level on the released 'val' split of the 10 training sessions (426 sentences).",
         "table": table,
         "runs": {r: {str(k): v for k, v in s.items()} for r, s in runs.items()},
         "ensembles": {k: v for k, v in systems.items() if k.endswith("_ens")},
+        "comparisons": systems.get("_comparisons", {}),
+        "decoder_tuning": {k: {h: v.get(h) for h in ("n_dev_tune", "beam", "alpha", "beta", "beta_lexicon", "gamma", "beta_llm",
+                                                    "dev_wer_lexicon", "dev_wer_ngram", "dev_wer_llm", "interior")}
+                           for k, v in systems.items() if not k.startswith("_")},
     }
+    out["ensemble_vs_members"] = {}
+    for k, v in out["ensembles"].items():
+        mem = [systems[n] for n in v.get("members", []) if n in systems]
+        if mem:
+            out["ensemble_vs_members"][k] = {key: {"ensemble": v.get(key), "best_member": min(x[key] for x in mem),
+                                                   "mean_member": float(np.mean([x[key] for x in mem]))}
+                                             for key in ("per_greedy", "wer_ngram", "wer_llm") if v.get(key) is not None}
+    stab = res / "stability.json"
+    if stab.exists():
+        out["stability"] = json.loads(stab.read_text())
+    prev = res / "round1" / "metrics.json"
+    if prev.exists():
+        pm = json.loads(prev.read_text())
+        out["previous_round"] = {"note": "Round-1 numbers (480 steps, previous recipe, decoder tuned on 100 dev sentences).",
+                                 "runs": {r: {sd: {k: v.get(k) for k in ("per_greedy", "wer_lexicon", "wer_ngram", "wer_llm", "best_dev_per")}
+                                              for sd, v in ss.items()} for r, ss in pm["runs"].items()},
+                                 "ensembles": {k: {kk: v.get(kk) for kk in ("per_greedy", "wer_lexicon", "wer_ngram")}
+                                               for k, v in pm.get("ensembles", {}).items()}}
     for name in ("calibration", "robustness", "latency"):
         p = res / f"{name}.json"
         if p.exists():
@@ -85,15 +108,20 @@ def export_site(cfg: dict, res: Path, metrics: dict) -> None:
     rows = []
     for r in metrics["table"]:
         row = {k: r[k] for k in ("model", "label", "system", "setting", "metric", "mean", "std", "n")}
+        for extra in ("ci95", "per_seed_ci95"):
+            if r.get(extra) is not None:
+                row[extra] = r[extra]
         if r["system"] == "single model":
             row["per_seed"] = {sd: v.get(key_of[r["setting"]]) for sd, v in metrics["runs"][r["model"]].items()}
         rows.append(row)
     (site / "metrics.json").write_text(json.dumps({
         "dataset": "Brain-to-Text '25 (Card et al., NEJM 2024), participant T15, 10 training sessions",
         "test_sentences": 426,
-        "note": "Error rates are fractions (0.388 = 38.8%). GRU seed 1 stalled in training for both GRU variants; "
-                "see per_seed. GPT-2 rescoring was run for the best single models only.",
+        "note": "Error rates are fractions (0.388 = 38.8%). Three seeds per model with the stabilised CTC recipe; "
+                "ci95 = sentence-level bootstrap 95% interval. Every decoder setting was tuned on the dev split "
+                "(215 held-out training sentences) and GPT-2 rescoring was run for every system.",
         "rows": rows,
+        "comparisons": metrics.get("comparisons", {}),
     }, indent=1))
 
     dec = json.loads((res / "decodes" / f"{main_sys}.json").read_text())
@@ -157,7 +185,12 @@ def export_site(cfg: dict, res: Path, metrics: dict) -> None:
             "test_sentences": cal["n_test_sentences"], "curve": curve,
             "modes": {"reuse": "no new data: reuse the latest day's input layer",
                       "day_layer": "fine-tune only the new day's input layer",
-                      "full": "fine-tune the whole network"}}, indent=1))
+                      "full": "fine-tune the whole network",
+                      "tta_moments": "unsupervised: match per-feature mean/std of the new day to the last training day",
+                      "tta_coral": "unsupervised: match the full feature covariance (CORAL) to the last training day",
+                      "tta_self_train": "unsupervised: pseudo-label self-training of the day layer (LM decodes, confidence-filtered)",
+                      "tta_coral+self_train": "unsupervised: CORAL initialisation, then pseudo-label self-training"},
+            "n_unlabelled_sentences": cal.get("pool_size")}, indent=1))
 
 
 def main() -> None:

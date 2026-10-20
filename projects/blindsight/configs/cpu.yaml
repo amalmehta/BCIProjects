@@ -88,3 +88,7 @@ temporal:
   frames_eval: 16          # 16 frames x 166 ms = 2.7 s
   n_eval_per_patient: 100
   speed_px: 1.0            # moving sequences: 1 px (0.19 deg) per frame
+# Website ONNX models (encoder.onnx = CIFAR, encoder_letters.onnx = letters), seed 0 of this variant.
+# threshold_aware graphs have the demo patient's calibration baked in (same image -> amplitude_ua I/O).
+export:
+  onnx_variant: threshold_aware

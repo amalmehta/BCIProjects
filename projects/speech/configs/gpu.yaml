@@ -26,6 +26,7 @@ train:
   lr: 0.003
   warmup_steps: 1000
   eval_every: 2000
+  curriculum_steps: 2000   # short-utterance curriculum (stabilised recipe; grad_clip 1.0, blank_bias 4.0 inherited)
 
 aug:
   random_cut: 3
@@ -59,12 +60,21 @@ runs:
   gru_bi_aug: {model: gru, aug: *new_aug, model_overrides: {bidirectional: true}}
 
 eval:
-  n_tune: 300
+  n_tune: all              # whole dev split; all decoder settings tuned on dev only
   beam: 64
+  beam_tune: 32
+  beams: [16, 32, 64, 128]
+  beam_max: 256
   workers: 8
+  llm_systems: all
 
 calibration:
+  base_run: conformer_aug_s0
+  modes: [reuse, day_layer, full]
+  n_sentences: [10, 25, 50, 100, 200]
+  repeats: 3
   steps: 200
+  tta: {coral_shrink: 0.1, rounds: 3, keep_frac: 0.5, steps: 200}
 
 schedule:
   - [gru_baseline, 0]

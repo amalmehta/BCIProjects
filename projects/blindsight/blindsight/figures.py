@@ -11,8 +11,10 @@ from .plotting import COLORS, FIGSIZE, TEXT_2, savefig, setup_style
 from .summarize import ENCODER_LABELS
 
 ORDER = ["intensity_uncalibrated", "intensity", "edge", "salient_edge", "learned", "learned_adapted",
-         "per_image_optimisation"]
-ENC_COLOR = {k: COLORS[i] for i, k in enumerate(ORDER)}
+         "per_image_optimisation", "learned_dropout_aug", "learned_threshold_aware_noaug", "learned_threshold_aware"]
+_PALETTE = COLORS + ["#7a5c2e", "#5f6b7a"]
+ENC_COLOR = {k: _PALETTE[i] for i, k in enumerate(ORDER)}
+ENC_COLOR["learned_threshold_aware"] = "#111111"
 DATASET_LABELS = {"mnist": "MNIST digits", "letters": "EMNIST letters", "cifar": "CIFAR-10 (grayscale)"}
 
 
@@ -47,24 +49,88 @@ def _main_bars(m: dict, fig_dir: Path) -> None:
 
 
 def _dropout(m: dict, fig_dir: Path) -> None:
+    """Failure curves: rows = unannounced / known-dead; columns = datasets; metric = accuracy and low-pass SSIM."""
     import matplotlib.pyplot as plt
 
     ds = list(m["robustness"])
-    fig, axes = plt.subplots(1, len(ds), figsize=(FIGSIZE[0] * 1.3, FIGSIZE[1] * 0.85), squeeze=False)
-    for j, d in enumerate(ds):
-        ax = axes[0, j]
-        for k in ORDER:
-            if k not in m["robustness"][d]:
-                continue
-            lv = sorted(m["robustness"][d][k], key=float)
-            ax.plot([100 * float(v) for v in lv], [m["robustness"][d][k][v]["acc"] for v in lv], "o-",
-                    color=ENC_COLOR[k], ms=4, lw=1.6, label=ENCODER_LABELS[k])
-        ax.set_title(DATASET_LABELS.get(d, d))
-        ax.set_xlabel("Extra electrodes failed (%)")
-        if j == 0:
-            ax.set_ylabel("Recognition accuracy")
-    axes[0, -1].legend(frameon=False, fontsize=7, loc="lower left")
+    show = ["intensity", "edge", "learned", "learned_adapted", "learned_dropout_aug", "learned_threshold_aware_noaug",
+            "learned_threshold_aware"]
+    blocks = [("robustness", "acc", "Unannounced: accuracy"), ("robustness_known_dead", "acc", "Known-dead: accuracy"),
+              ("robustness", "ssim_lowpass", "Unannounced: low-pass SSIM"),
+              ("robustness_known_dead", "ssim_lowpass", "Known-dead: low-pass SSIM")]
+    blocks = [b for b in blocks if b[0] in m]
+    fig, axes = plt.subplots(len(blocks), len(ds), figsize=(FIGSIZE[0] * 1.3, 1.9 * len(blocks)), squeeze=False)
+    for i, (src, key, lab) in enumerate(blocks):
+        for j, d in enumerate(ds):
+            ax = axes[i, j]
+            for k in show:
+                if k not in m[src].get(d, {}):
+                    continue
+                lv = sorted(m[src][d][k], key=float)
+                ax.plot([100 * float(v) for v in lv], [m[src][d][k][v][key] for v in lv], "o-",
+                        color=ENC_COLOR[k], ms=3, lw=1.4, label=ENCODER_LABELS[k])
+            if i == 0:
+                ax.set_title(DATASET_LABELS.get(d, d))
+            if i == len(blocks) - 1:
+                ax.set_xlabel("Extra electrodes failed (%)")
+            if j == 0:
+                ax.set_ylabel(lab, fontsize=7)
+    axes[0, -1].legend(frameon=False, fontsize=6, loc="lower left")
     savefig(fig, fig_dir / "fig_dropout_robustness.png")
+
+
+def _budget(m: dict, fig_dir: Path) -> None:
+    """Sub-threshold share of active currents and charge per frame, by encoder and dataset."""
+    import matplotlib.pyplot as plt
+
+    show = ["intensity", "learned", "learned_adapted", "learned_threshold_aware_noaug", "learned_threshold_aware"]
+    ds = list(m["main"])
+    fig, axes = plt.subplots(1, 3, figsize=(FIGSIZE[0] * 1.2, FIGSIZE[1] * 0.85))
+    w = 0.8 / len(show)
+    for ax, key, lab in ((axes[0], "frac_active_subthreshold", "Active currents below threshold"),
+                         (axes[1], "charge_nc_per_phase", "Charge per frame (nC/phase)"),
+                         (axes[2], "acc", "Recognition accuracy")):
+        for i, k in enumerate(show):
+            xs = [j + (i - (len(show) - 1) / 2) * w for j in range(len(ds))]
+            ys = [m["main"][d]["encoders"].get(k, {}).get(key, np.nan) for d in ds]
+            ax.bar(xs, ys, width=w, color=ENC_COLOR[k], label=ENCODER_LABELS[k])
+        ax.set_xticks(range(len(ds)))
+        ax.set_xticklabels([DATASET_LABELS.get(d, d).split(" ")[0] for d in ds], fontsize=8)
+        ax.set_title(lab, fontsize=9)
+        ax.grid(axis="x", visible=False)
+    axes[0].legend(frameon=False, fontsize=6, loc="upper right")
+    savefig(fig, fig_dir / "fig_threshold_budget.png")
+
+
+def _temporal(m: dict, fig_dir: Path) -> None:
+    """Per-frame low-pass SSIM over a 2.7 s sequence under habituation (static and moving images)."""
+    import matplotlib.pyplot as plt
+
+    t = m.get("temporal")
+    if not t:
+        return
+    names = {"intensity": ("Intensity (frame by frame)", ENC_COLOR["intensity"], "-"),
+             "learned": ("Learned generic (frame by frame)", ENC_COLOR["learned"], "-"),
+             "learned_threshold_aware": ("Threshold-aware (frame by frame)", "#777777", "-"),
+             "threshold_aware_compensated": ("Threshold-aware + trace compensation", COLORS[3], "--"),
+             "learned_temporal": ("Temporal encoder (BPTT)", "#111111", "-")}
+    ds = list(t)
+    fig, axes = plt.subplots(len(ds), 2, figsize=(FIGSIZE[0], 2.0 * len(ds)), squeeze=False)
+    for i, d in enumerate(ds):
+        dt = t[d]["frame_s"]
+        for j, mode in enumerate(("static", "moving")):
+            ax = axes[i, j]
+            for k, (lab, c, ls) in names.items():
+                r = t[d]["modes"][mode].get(k)
+                if r:
+                    ax.plot(dt * np.arange(1, len(r["ssim_lowpass"]) + 1), r["ssim_lowpass"], ls, color=c, lw=1.5, label=lab)
+            ax.set_title(f"{DATASET_LABELS.get(d, d)}, {mode}", fontsize=9)
+            if i == len(ds) - 1:
+                ax.set_xlabel("Time (s), 166 ms frames")
+            if j == 0:
+                ax.set_ylabel("Low-pass SSIM")
+    axes[0, 1].legend(frameon=False, fontsize=6)
+    savefig(fig, fig_dir / "fig_temporal_habituation.png")
 
 
 def _adapt(m: dict, fig_dir: Path) -> None:
@@ -118,8 +184,9 @@ def _examples(cfg: dict, fig_dir: Path) -> None:
     import matplotlib.pyplot as plt
 
     ev = Path(cfg["results_dir"]) / "eval"
-    cols = ["input", "intensity", "edge", "salient_edge", "learned", "learned_adapted"]
-    titles = {"input": "Input", **ENCODER_LABELS, "learned_adapted": "Learned +\nadapter"}
+    cols = ["input", "intensity", "edge", "salient_edge", "learned", "learned_adapted", "learned_threshold_aware"]
+    titles = {"input": "Input", **ENCODER_LABELS, "learned_adapted": "Learned +\nadapter",
+              "learned_threshold_aware": "Threshold-\naware"}
     ds = [d for d in cfg["datasets"] if (ev / f"{d}_examples.pt").exists()]
     if not ds:
         return
@@ -130,6 +197,9 @@ def _examples(cfg: dict, fig_dir: Path) -> None:
         for i in range(n_per):
             for j, c in enumerate(cols):
                 ax = axes[di * n_per + i, j]
+                if c not in ex:
+                    ax.axis("off")
+                    continue
                 ax.imshow(ex[c][i, 0].numpy(), cmap="gray", vmin=0, vmax=1)
                 ax.set_xticks([]); ax.set_yticks([])
                 for s in ax.spines.values():
@@ -165,6 +235,8 @@ def make_figures(cfg: dict, log=print) -> None:
     m = json.loads((Path(cfg["results_dir"]) / "metrics.json").read_text())
     _main_bars(m, fig_dir)
     _dropout(m, fig_dir)
+    _budget(m, fig_dir)
+    _temporal(m, fig_dir)
     _adapt(m, fig_dir)
     _ablations(m, fig_dir)
     _examples(cfg, fig_dir)

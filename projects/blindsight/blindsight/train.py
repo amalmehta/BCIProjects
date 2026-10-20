@@ -82,12 +82,21 @@ def end_to_end_loss(enc, dec, setup: Setup, patient: Patient, x: torch.Tensor, w
     ``cond`` is the calibration given to a conditioned encoder; ``keep`` (B, N) marks electrodes
     that work in this batch (extra failures; announced only if ``cond`` already includes them).
     """
-    with _autocast(x.device):
-        u = encode(enc, x, cond)
-    amp = setup.safety(u.float())
-    if keep is not None:
-        amp = amp * keep
-    p = setup.sim(amp, patient, hard=not train, fast=train)
+    if isinstance(enc, ThresholdAwareEncoder):
+        with _autocast(x.device):
+            gate, level = enc.parts(x, cond)
+        gate, level = gate.float(), level.float().clamp(0.0, setup.params.max_current_ua)
+        k = setup.safety.keep_mask(gate.detach() * level)
+        level = level * k * (1.0 if keep is None else keep)
+        amp = gate * level
+        p = setup.sim(level, patient, hard=not train, fast=train, gate=gate)
+    else:
+        with _autocast(x.device):
+            u = encode(enc, x, cond)
+        amp = setup.safety(u.float())
+        if keep is not None:
+            amp = amp * keep
+        p = setup.sim(amp, patient, hard=not train, fast=train)
     if w["w_recon"] > 0:
         with _autocast(x.device):
             rec = dec(p)

@@ -9,7 +9,14 @@ lag_candidates: [0, 1, 2, 3, 4, 5, 6]   # neural-to-velocity lag (bins), chosen 
 seeds: [0, 1, 2]
 
 wiener: {n_lags: 10, alphas: [10.0, 30.0, 100.0, 1000.0, 10000.0]}
-kalman: {smooth_bins: [3, 5, 8], q_scales: [0.3, 1.0, 3.0]}
+kalman: {smooth_bins: [3, 5, 8], q_scales: [0.3, 1.0, 3.0]}   # velocity-only filter (kept as kalman_v1)
+kalman_pv:                              # strong Kalman baseline (stage kalman); order 0 = velocity-only state
+  smooth_bins: [3, 5, 8]                # causal boxcar = bin width 60 / 100 / 160 ms, updated every 20 ms
+  obs_delay: [0, 1, 2]                  # extra neural lead (bins) on top of the global lag
+  order: [0, 1, 2]                      # 0: v, 1: p + v, 2: p + v + a
+  q_scales: [0.5, 1.0, 2.0]
+  sqrt: [false, true]
+remap: {margin: 0.1, corr_weight: 1.0, synth_day_stride: 3, repeats: 2, shuffle_fracs: [0.1, 0.25, 0.5, 1.0]}
 fa: {q: 10, smooth_bins: 5, n_lags: 5, stable_frac: 0.6}
 
 train:
@@ -45,14 +52,28 @@ sim:
   grid_sweep: [6, 8, 10, 15, 20, 35]
   seconds: 60
   tune_seconds: 30
-  eval_sessions: 4
+  eval_sessions: 40                     # paired seeds (common random numbers) per decoder
+  tune_sessions: 4
+  sweep_sessions: 20
   gains: [0.75, 1.0, 1.5]
   smooths: [0.0, 0.6]
   click_holds: [0.1, 0.25]              # user's caution before clicking (tuned per decoder)
   encoder_hidden: 128
   encoder_steps: 1000
   noise_grid: [0.0, 0.25, 0.5, 0.75, 1.0]
-  crossday_sessions: 3
+  crossday_sessions: 20
   crossday_days: [indy_20161005_06, indy_20161026_03, indy_20161207_02, indy_20170131_02]
   refit_seconds: 120
   ablations: [sld_no_aug, sld_no_ssl, sld_no_adapters, sld_transformer, gru_aug]
+clda:                                   # ReFIT-style closed-loop adaptation in the simulator (stage clda)
+  rounds: 3
+  sessions_per_round: 4
+  seconds: 60
+  steps: 200
+  batch: 16
+  lr_gru: 0.0003
+  lr_adapter: 0.001
+  adapter_l2: 0.01
+  rehearsal: 0.5
+  decoders: [wiener, kalman, gru, sld]
+  sld_head_variant: true                # also report SLD adapter + velocity head

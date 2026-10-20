@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end pipeline on CPU with configs/cpu.yaml:
-#   data download -> prep -> train -> eval -> few-shot + stress -> closed-loop sim -> export.
+#   data download -> prep -> train -> eval -> kalman -> remap -> few-shot + stress -> closed-loop sim -> clda -> export.
 # Stages are cached: finished checkpoints are skipped, so the script can be re-run after an interruption.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,6 +27,10 @@ wait
 echo "== eval =="
 run --stage eval
 
+echo "== strong Kalman (PVA) baseline, then label-free channel re-matching =="
+run --stage kalman
+run --stage remap
+
 echo "== few-shot and stress tests (parallel) =="
 run --stage fewshot > "$LOGS"/fewshot.out 2>&1 &
 run --stage stress > "$LOGS"/stress.out 2>&1 &
@@ -35,6 +39,9 @@ wait
 echo "== closed-loop WebGrid simulator =="
 run --stage sim
 run --stage simabl
+
+echo "== closed-loop decoder adaptation (ReFIT-style) in the simulator =="
+run --stage clda
 
 echo "== export (metrics.json, figures, site_export) =="
 run --stage export

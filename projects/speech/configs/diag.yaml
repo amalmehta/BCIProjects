@@ -1,5 +1,5 @@
-# Diagnostic probes of CTC training instability (first 150 of 480 steps, same LR schedule).
-# Used by scripts/run_cpu.sh only when DIAG=1; results go to results/diag/.
+# Diagnostic probes of CTC training instability (first 150 of the 480-step schedule, same LR schedule).
+# Results go to results/diag/ (traces: runs/<run>_s<seed>/trace.jsonl). Run with scripts/run_cpu.sh DIAG=1.
 base: cpu.yaml
 results_dir: results/diag
 train:
@@ -8,6 +8,11 @@ train:
 runs:
   gru_old:                # last round's recipe, unchanged
     model: gru
-  gru_old_clip1:          # + tighter gradient clipping only
+    data: {input_scale: 1.0}
+    train: {warmup_steps: 50, grad_clip: 10.0, curriculum_steps: 0}
+    model_overrides: {blank_bias: null}
+  gru_fixed:              # this round's recipe (cpu.yaml defaults)
     model: gru
-    train: {grad_clip: 1.0}
+schedule:
+  - [gru_old, 1]
+  - [gru_fixed, 1]

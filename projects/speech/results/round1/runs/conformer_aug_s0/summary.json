@@ -1,0 +1,10 @@
+{
+  "run": "conformer_aug",
+  "seed": 0,
+  "n_params": 4993097,
+  "train_minutes": 55.73373810450236,
+  "steps": 480,
+  "dev_per_greedy": 0.3552264808362369,
+  "test_per_greedy": 0.3879469666532744,
+  "best_dev_per": 0.3552264808362369
+}

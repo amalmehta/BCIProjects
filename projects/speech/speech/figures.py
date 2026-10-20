@@ -33,20 +33,43 @@ def _style():
     })
 
 
+def _read_jsonl(p: Path) -> list[dict]:
+    return [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
+
+
 def fig_training_curves(cfg, res, out):
-    fig, ax = plt.subplots(figsize=(5.2, 3.2))
-    for run, color in RUN_COLOR.items():
-        for seed, style in ((0, "-"), (1, "--"), (2, ":")):
-            p = res / "runs" / f"{run}_s{seed}" / "log.jsonl"
-            if not p.exists():
-                continue
-            h = [json.loads(l) for l in p.read_text().splitlines()]
-            ax.plot([r["step"] for r in h], [100 * r["dev_per"] for r in h], style, color=color,
-                    lw=2 if seed == 0 else 1.2, label=SHORT[run] if seed == 0 else None)
+    """(a) dev PER, last round's recipe (round1) vs. this round's; (b) per-step training loss of every seed."""
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.3))
+    ax = axes[0]
+    for run in ("gru_baseline", "gru_aug", "conformer_aug"):
+        for seed in range(3):
+            for root, style, lw, tag in ((res / "round1" / "runs", "--", 1.0, "previous recipe"), (res / "runs", "-", 1.6, "stabilised recipe")):
+                h = _read_jsonl(root / f"{run}_s{seed}" / "log.jsonl")
+                if h:
+                    ax.plot([r["step"] for r in h], [100 * r["dev_per"] for r in h], style, color=RUN_COLOR[run], lw=lw,
+                            label=f"{SHORT[run]}, {tag}" if seed == 0 or (tag == "previous recipe" and run == "gru_aug" and seed == 0) else None)
     ax.set_xlabel("optimizer step (batch 32)")
     ax.set_ylabel("dev phoneme error rate (%)")
-    ax.set_title("Training curves (greedy CTC; solid = seed 0, dashed/dotted = seeds 1/2)", fontsize=9)
-    ax.legend(fontsize=7, ncol=2)
+    ax.set_title("(a) Dev PER per seed: dashed = previous recipe, solid = stabilised", fontsize=9)
+    ax.legend(fontsize=6.5)
+    ax = axes[1]
+    k = 10
+    for run in ("gru_baseline", "conformer_aug"):
+        for seed in range(3):
+            t = _read_jsonl(res / "runs" / f"{run}_s{seed}" / "trace.jsonl")
+            if len(t) > k:
+                y = np.convolve([r["loss"] for r in t], np.ones(k) / k, mode="valid")
+                ax.plot(np.arange(len(y)) + k, y, color=RUN_COLOR[run], lw=1.2, alpha=0.9,
+                        label=f"{SHORT[run]} (3 seeds)" if seed == 0 else None)
+    t = _read_jsonl(res / "diag" / "runs" / "gru_old_s1" / "trace.jsonl")
+    if len(t) > k:
+        y = np.convolve([r["loss"] for r in t], np.ones(k) / k, mode="valid")
+        ax.plot(np.arange(len(y)) + k, y, "--", color=INK, lw=1.2, label="GRU seed 1, previous recipe (probe)")
+    ax.set_ylim(0.8, 6)
+    ax.set_xlabel("optimizer step")
+    ax.set_ylabel("training CTC loss (10-step mean)")
+    ax.set_title("(b) Training loss, every seed", fontsize=9)
+    ax.legend(fontsize=7)
     fig.savefig(out / "training_curves.png")
     plt.close(fig)
 
@@ -81,7 +104,7 @@ def fig_main_results(metrics, out):
         ax.set_title(title, fontsize=9)
         ax.set_xlabel("PER (%)" if key == "per_greedy" else "WER (%)")
         ax.grid(axis="y", visible=False)
-    fig.suptitle("Held-out test sentences (n = 426). Bar = seed 0, ○ = seed 1, ◆ = 2-seed posterior-averaged ensemble",
+    fig.suptitle("Held-out test sentences (n = 426). Bar = seed 0, ○ = seeds 1-2, ◆ = posterior-averaged seed ensemble",
                  fontsize=9, y=1.02)
     fig.savefig(out / "main_results.png")
     plt.close(fig)
@@ -96,6 +119,8 @@ def fig_calibration(metrics, out):
     for ax, key, lab in zip(axes, ("wer", "per"), ("word error rate (%) with 3-gram LM", "phoneme error rate (%), greedy")):
         for mode, color, name in (("day_layer", C[0], "fine-tune new day's input layer only"), ("full", C[1], "fine-tune whole network")):
             rs = [r for r in cal["rows"] if r["mode"] == mode]
+            if not rs:
+                continue
             ns = sorted({r["n_sentences"] for r in rs})
             m = [100 * np.mean([r[key] for r in rs if r["n_sentences"] == n]) for n in ns]
             lo = [100 * np.min([r[key] for r in rs if r["n_sentences"] == n]) for n in ns]
@@ -104,8 +129,14 @@ def fig_calibration(metrics, out):
             ax.plot(ns, m, "-o", color=color, ms=4, label=name)
         if reuse:
             ax.axhline(100 * reuse[0][key], color=INK2, ls="--", lw=1.2, label="no new data (reuse latest day's layer)")
+        for mode, color, ls, name in (("tta_coral", C[3], ":", "unsupervised: CORAL statistics matching"),
+                                      ("tta_self_train", C[2], "-.", "unsupervised: pseudo-label self-training"),
+                                      ("tta_coral+self_train", C[6], "-", "unsupervised: CORAL + self-training")):
+            rs = [r for r in cal["rows"] if r["mode"] == mode]
+            if rs:
+                ax.axhline(100 * rs[0][key], color=color, ls=ls, lw=1.4, label=name)
         ax.set_xscale("log")
-        ticks = sorted({r["n_sentences"] for r in cal["rows"] if r["mode"] != "reuse"})
+        ticks = sorted({r["n_sentences"] for r in cal["rows"] if r["n_sentences"] > 0})
         ax.set_xticks(ticks)
         ax.set_xticklabels([str(t) for t in ticks])
         ax.minorticks_off()

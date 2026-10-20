@@ -19,8 +19,8 @@ import numpy as np
 import torch
 
 from .config import build_setup
-from .encoders import IntensityEncoder
-from .train import load_encoder
+from .encoders import BakedThresholdAwareEncoder, IntensityEncoder, ThresholdAwareEncoder
+from .train import load_encoder, patient_condition
 
 DEMO_PATIENT_SEED = 1000
 
@@ -148,12 +148,18 @@ def export_baseline(setup, out: Path) -> None:
     (out / "baseline_encoder.json").write_text(json.dumps(doc, indent=1))
 
 
-def export_onnx(cfg: dict, dataset: str, path: Path, log) -> dict:
+def export_onnx(cfg: dict, dataset: str, path: Path, log, variant: str = "main") -> dict:
+    """Export one seed-0 encoder. A threshold-aware encoder gets the demo patient's calibration
+    (thresholds, alive mask, coverage map) baked in as constants, so the graph keeps the generic
+    I/O: ``image`` (batch, 1, 64, 64) -> ``amplitude_ua`` (batch, N)."""
     import onnx
     import onnxruntime as ort
 
-    run = Path(cfg["results_dir"]) / "runs" / f"{dataset}_main_s0"
-    enc, _, setup = load_encoder(cfg, "main", run)
+    run = Path(cfg["results_dir"]) / "runs" / f"{dataset}_{variant}_s0"
+    enc, _, setup = load_encoder(cfg, variant, run)
+    conditioned = isinstance(enc, ThresholdAwareEncoder)
+    if conditioned:
+        enc = BakedThresholdAwareEncoder(enc, patient_condition(setup, setup.patient(DEMO_PATIENT_SEED)))
     enc = enc.cpu().eval()
     R = setup.params.resolution
     dummy = torch.rand(2, 1, R, R)
@@ -167,8 +173,12 @@ def export_onnx(cfg: dict, dataset: str, path: Path, log) -> dict:
     err = float(np.abs(ref - got).max())
     log(f"onnx {path.name}: {path.stat().st_size / 1e3:.0f} kB, max |torch - onnxruntime| = {err:.2e} uA")
     ops = sorted({n.op_type for n in onnx.load(str(path)).graph.node})
-    return {"file": path.name, "trained_on": dataset, "seed": 0, "size_bytes": path.stat().st_size,
-            "max_abs_diff_vs_torch_ua": err, "onnx_ops": ops, "opset": 17}
+    return {"file": path.name, "trained_on": dataset, "seed": 0, "variant": variant, "size_bytes": path.stat().st_size,
+            "max_abs_diff_vs_torch_ua": err, "onnx_ops": ops, "opset": 17,
+            "conditioning": (f"threshold-aware encoder; the demo patient's (seed {DEMO_PATIENT_SEED}) calibrated "
+                             "thresholds and alive mask from electrodes.json are baked into the graph as constants. "
+                             "Electrodes failed later in the browser are therefore unannounced to the encoder.")
+            if conditioned else "generic encoder: image only, no patient calibration"}
 
 
 def export_gallery(cfg: dict, out: Path) -> None:
@@ -202,9 +212,10 @@ def export_site(cfg: dict, log=print) -> None:
     export_electrodes(setup, out)
     export_baseline(setup, out)
     onnx_info = []
+    variant = cfg.get("export", {}).get("onnx_variant", "main")
     for d, name in (("cifar", "encoder.onnx"), ("letters", "encoder_letters.onnx")):
-        if (Path(cfg["results_dir"]) / "runs" / f"{d}_main_s0" / "encoder.pt").exists():
-            onnx_info.append(export_onnx(cfg, d, out / name, log))
+        if (Path(cfg["results_dir"]) / "runs" / f"{d}_{variant}_s0" / "encoder.pt").exists():
+            onnx_info.append(export_onnx(cfg, d, out / name, log, variant))
     spec = {
         "models": onnx_info,
         "input": {"name": "image", "shape": ["batch", 1, setup.params.resolution, setup.params.resolution],

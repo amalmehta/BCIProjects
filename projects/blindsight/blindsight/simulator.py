@@ -253,7 +253,7 @@ class PhospheneSimulator(nn.Module):
         return self._basis_cache[0], self._basis_cache[1]
 
     def forward(self, amp_ua: torch.Tensor, patient: Patient, hard: bool = True, fast: bool = False,
-                activation: torch.Tensor | None = None) -> torch.Tensor:
+                activation: torch.Tensor | None = None, gate: torch.Tensor | None = None) -> torch.Tensor:
         """Amplitudes (B, N) in uA -> percept (B, 1, H, W) in [0, 1].
 
         ``fast=True`` (training) replaces the exact amplitude-dependent Gaussian by a
@@ -266,6 +266,11 @@ class PhospheneSimulator(nn.Module):
         # ``activation`` (B, N) overrides the static closed form (used by sequence rendering).
         act = self.activation(amp_ua) if activation is None else activation
         b = self.brightness(act, patient.threshold, hard=hard) * patient.alive
+        if gate is not None:
+            # On/off gate applied to brightness rather than current: identical forward percept for a
+            # {0, 1} gate (b(0) = 0), but an "off" electrode still receives a gradient (the change in
+            # percept if it were switched on), which a zero current cannot provide.
+            b = b * gate
         if not fast:
             sig = self.sigma_deg(amp_ua, patient.ecc_deg)
             return self.render(b, sig, patient.x_deg, patient.y_deg)

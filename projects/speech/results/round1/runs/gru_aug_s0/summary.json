@@ -1,0 +1,10 @@
+{
+  "run": "gru_aug",
+  "seed": 0,
+  "n_params": 5458729,
+  "train_minutes": 39.01812346378962,
+  "steps": 480,
+  "dev_per_greedy": 0.4569686411149826,
+  "test_per_greedy": 0.49216552832462834,
+  "best_dev_per": 0.4569686411149826
+}

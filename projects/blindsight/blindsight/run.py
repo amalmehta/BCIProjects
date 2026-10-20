@@ -18,7 +18,9 @@ import torch
 
 from .config import build_setup, load_config, variant_config
 from .data import load, prepare
-from .evaluate import (adapt_encoder, baseline_factories, evaluate_factory, evaluate_oracle, image_ceiling)
+from .encoders import ThresholdAwareEncoder
+from .evaluate import (adapt_encoder, baseline_factories, conditioned_factories, evaluate_factory, evaluate_oracle,
+                       image_ceiling)
 from .metrics import psnr, ssim
 from .train import load_encoder, train_encoder
 
@@ -32,6 +34,26 @@ def _log_to(path: Path):
         with open(path, "a") as f:
             f.write(line + "\n")
     return log
+
+
+VARIANT_ROW_NAMES = {"threshold_aware": "learned_threshold_aware", "threshold_aware_noaug": "learned_threshold_aware_noaug",
+                     "dropout_aug": "learned_dropout_aug"}
+
+
+def stage_temporal(cfg: dict, log, force: bool = False) -> None:
+    """Train (if needed) and evaluate the temporal encoder on static/moving sequences."""
+    from .temporal import evaluate_temporal, train_temporal
+
+    ev = Path(cfg["results_dir"]) / "eval"
+    ev.mkdir(parents=True, exist_ok=True)
+    tc_t = cfg["temporal"]
+    for d in tc_t["datasets"]:
+        out = run_dir(cfg, d, "temporal", tc_t["seed"])
+        if not (out / "encoder.pt").exists():
+            train_temporal(cfg, d, out, log)
+        f = ev / f"temporal_{d}.json"
+        if force or not f.exists():
+            f.write_text(json.dumps(evaluate_temporal(cfg, d, log), indent=1))
 
 
 def run_dir(cfg: dict, dataset: str, variant: str, seed: int) -> Path:
@@ -110,6 +132,27 @@ def stage_evaluate(cfg: dict, dataset: str, log) -> None:
                              ec["dropout_levels"], decoder=dec, keep_examples=12)
         examples.setdefault("learned_adapted", r.pop("_examples"))
         out["rows"].append({**r, "seed": seed})
+    # Encoder variants (threshold-aware, dropout-augmented, ...) trained on every dataset.
+    for v in encoder_variants(cfg):
+        name = VARIANT_ROW_NAMES.get(v, "learned_" + v)
+        for seed in cfg["variants"][v]["_seeds"]:
+            rd = run_dir(cfg, dataset, v, seed)
+            if dataset not in cfg["variants"][v]["_datasets"] or not (rd / "encoder.pt").exists():
+                continue
+            enc, dec, _ = load_encoder(cfg, v, rd)
+            if isinstance(enc, ThresholdAwareEncoder):
+                fac, known = conditioned_factories(enc, setup)
+            else:
+                fac, known = (lambda p, enc=enc: enc), None
+            r = evaluate_factory(name, fac, setup, dataset, train_set, test_set, cfg, log, ec["dropout_levels"],
+                                 decoder=dec, keep_examples=12, known_factory=known)
+            examples.setdefault(name, r.pop("_examples"))
+            out["rows"].append({**r, "seed": seed, "variant": v})
+            if isinstance(enc, ThresholdAwareEncoder) and seed == cfg["variants"][v]["_seeds"][0] and ec.get("threshold_noise_cv"):
+                # Calibration-error check: the encoder is told noisy thresholds, the simulator uses the true ones.
+                fac_n, _ = conditioned_factories(enc, setup, noise_cv=ec["threshold_noise_cv"], noise_seed=77)
+                r = evaluate_factory(name + "_noisy_thresholds", fac_n, setup, dataset, train_set, test_set, cfg, log)
+                out["rows"].append({**r, "seed": seed, "variant": v, "threshold_noise_cv": ec["threshold_noise_cv"]})
     out["rows"].append({**evaluate_oracle(setup, test_set, cfg, log), "seed": None})
     x_ex, y_ex = test_set.batch(torch.arange(12))
     examples["input"] = x_ex
@@ -215,11 +258,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", required=True)
     ap.add_argument("--stage", required=True,
-                    choices=["data", "validate", "train", "evaluate", "ablate", "adapt", "diagnostics", "summarize", "figures",
-                             "export"])
+                    choices=["data", "validate", "train", "evaluate", "ablate", "adapt", "diagnostics", "temporal", "summarize",
+                             "figures", "export"])
     ap.add_argument("--dataset", default=None)
     ap.add_argument("--shard", default="0/1", help="i/n: run every n-th training job starting at i")
     ap.add_argument("--force", action="store_true", help="recompute evaluate/adapt/diagnostics even if outputs exist")
+    ap.add_argument("--no-ablations", action="store_true", help="train stage: skip the MNIST ablation variants")
     args = ap.parse_args()
     cfg = load_config(args.config)
     torch.set_num_threads(cfg.get("threads", 2))
@@ -236,7 +280,7 @@ def main() -> None:
         from .validation import run_validation
         run_validation(cfg, log)
     elif args.stage == "train":
-        stage_train(cfg, args.shard, log)
+        stage_train(cfg, args.shard, log, ablations=not args.no_ablations)
     elif args.stage == "evaluate":
         for d in ([args.dataset] if args.dataset else cfg["datasets"]):
             if args.force or not (ev_dir / f"{d}.json").exists():
@@ -249,6 +293,8 @@ def main() -> None:
     elif args.stage == "diagnostics":
         if args.force or not (ev_dir / "diagnostics.json").exists():
             stage_diagnostics(cfg, log)
+    elif args.stage == "temporal":
+        stage_temporal(cfg, log, force=args.force)
     elif args.stage == "summarize":
         from .summarize import summarize
         summarize(cfg, log)

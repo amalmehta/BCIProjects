@@ -11,6 +11,8 @@ lag_candidates: [1]
 seeds: [0]
 wiener: {n_lags: 10, alphas: [10.0]}
 kalman: {smooth_bins: [8], q_scales: [1.0]}
+kalman_pv: {smooth_bins: [3], obs_delay: [0], order: [0, 2], q_scales: [1.0], sqrt: [false]}
+remap: {margin: 0.1, corr_weight: 1.0, synth_day_stride: 10, repeats: 1, shuffle_fracs: [0.25]}
 fa: {q: 10, smooth_bins: 5, n_lags: 5, stable_frac: 0.6}
 train: {steps: 40, batch: 8, window: 64, warmup_bins: 24, lr: 0.002, eval_every: 20}
 gru: {hidden: 32}
@@ -44,3 +46,4 @@ sim:
   crossday_days: [indy_20170131_02]
   refit_seconds: 4
   ablations: [sld_no_aug]
+clda: {rounds: 1, sessions_per_round: 1, seconds: 10, steps: 5, batch: 4, decoders: [wiener, sld], sld_head_variant: false}

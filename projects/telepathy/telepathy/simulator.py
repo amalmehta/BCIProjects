@@ -250,110 +250,182 @@ class WebGridResult:
 
 def run_webgrid(decoder: Decoder | None, enc: EncodingModel, user: UserModel, cfg: WebGridConfig, gain: float = 1.0,
                 smooth: float = 0.0, seed: int = 0) -> WebGridResult:
-    """Simulate one closed-loop WebGrid session and return its bitrate and full trace.
+    """Simulate one closed-loop WebGrid session (a batch of one, see :func:`run_webgrid_batch`).
 
     The cursor moves with ``gain`` x an exponentially smoothed decoded velocity
     (``v_s <- smooth v_s + (1 - smooth) v_dec``); gain and smoothing are the two standard
     closed-loop tuning knobs (Willett et al. 2019) and are tuned per decoder.
     """
-    rng = np.random.default_rng(seed)
+    return run_webgrid_batch(decoder, enc, user, cfg, [seed], gain, smooth)[0]
+
+
+@dataclasses.dataclass
+class SessionNoise:
+    """Decoder-independent random numbers of one simulated session (common random numbers).
+
+    Every decoder evaluated with the same seed sees the same target sequence, latent neural
+    noise, motor noise and click randomness, so bitrate differences between decoders are paired.
+    Only the Poisson spike draws depend on the decoder (through the rates), and they come from a
+    separate per-seed stream."""
+
+    targets: np.ndarray  # (K, 2) sequence of (row, col) cells, consecutive cells differ
+    latent: np.ndarray  # (T + 1, C) latent log-rate noise
+    motor: np.ndarray  # (T, 2) standard normals
+    u_miss: np.ndarray  # (T,) uniforms for missed clicks
+    u_false: np.ndarray  # (T,) uniforms for spurious clicks
+    pois: np.random.Generator
+
+    @classmethod
+    def draw(cls, seed: int, enc: EncodingModel, n: int, T: int) -> "SessionNoise":
+        rng = np.random.default_rng(seed)
+        K = T // 10 + 2  # >= max selections possible (refractory 0.3 s)
+        cells = [(int(rng.integers(n)), int(rng.integers(n)))]
+        while len(cells) < K:
+            rc = (int(rng.integers(n)), int(rng.integers(n)))
+            if rc != cells[-1]:
+                cells.append(rc)
+        latent = enc.latent_noise(T + 1, rng)
+        return cls(np.array(cells), latent, rng.standard_normal((T, 2)), rng.random(T), rng.random(T),
+                   np.random.default_rng([seed, 7919]))
+
+
+def _vec(x, B: int) -> np.ndarray:
+    return np.broadcast_to(np.asarray(x, np.float64), (B,)).copy()
+
+
+def run_webgrid_batch(decoder: Decoder | None, enc: EncodingModel, user: UserModel, cfg: WebGridConfig,
+                      seeds, gain=1.0, smooth=0.0, hold=None) -> list[WebGridResult]:
+    """Simulate ``len(seeds)`` independent closed-loop sessions in lock-step (vectorised over sessions).
+
+    ``gain``, ``smooth`` and ``hold`` (click hold time, default ``cfg.click_hold_s``) may be scalars
+    or one value per session, so a whole tuning grid runs as one batch. Session ``b`` draws its
+    decoder-independent randomness from ``SessionNoise.draw(seeds[b])`` (common random numbers),
+    so the same seed gives the same task and noise for every decoder, and a session's result does
+    not depend on which other sessions share the batch. The decoder (if any) must implement
+    ``reset_batch``/``step_batch`` or ``reset``/``step`` (then it is deep-copied per session).
+    """
+    import copy as _copy
+
+    seeds = list(seeds)
+    B = len(seeds)
     n, side = cfg.grid, cfg.side_mm
     cell = side / n
-    origin = np.asarray(cfg.center) - side / 2
+    origin = np.asarray(cfg.center, np.float64) - side / 2
     T = int(cfg.seconds / DT)
-
-    def cell_of(p):
-        ij = np.floor((p - origin) / cell).astype(int)
-        return int(np.clip(ij[1], 0, n - 1)), int(np.clip(ij[0], 0, n - 1))  # (row, col)
-
-    def center_of(rc):
-        return origin + (np.array([rc[1], rc[0]]) + 0.5) * cell
-
-    def new_target(prev):
-        while True:
-            rc = (int(rng.integers(n)), int(rng.integers(n)))
-            if rc != prev:
-                return rc
-
+    gain, smooth = _vec(gain, B), _vec(smooth, B)
+    hold = _vec(cfg.click_hold_s if hold is None else hold, B)
+    noise = [SessionNoise.draw(s, enc, n, T) for s in seeds]
+    tgt_seq = np.stack([z.targets for z in noise])  # (B, K, 2)
+    latent = np.stack([z.latent for z in noise])  # (B, T+1, C)
+    motor = np.stack([z.motor for z in noise], 1)  # (T, B, 2)
+    u_miss = np.stack([z.u_miss for z in noise], 1)
+    u_false = np.stack([z.u_false for z in noise], 1)
+    batched = decoder is not None and hasattr(decoder, "step_batch")
+    copies = None
     if decoder is not None:
-        decoder.reset()
-    noise = enc.latent_noise(T + 1, rng)
-    # Intention buffer, newest first. The encoding model's "present" lags the newest intention
-    # by ``enc.fut`` bins, so neural activity leads the decoded target as in the real data.
-    hist = np.zeros((enc.n_lags, 2), np.float32)
-    p = np.asarray(cfg.center, np.float64).copy()
-    path = np.zeros((T, 2))
-    rec_int, rec_dec = np.zeros((T, 2)), np.zeros((T, 2))
-    rec_counts, rec_tgt = np.zeros((T, enc.U.shape[0]), np.float32), np.zeros((T, 2))
-    v_int = np.zeros(2)
-    v_s = np.zeros(2)
-    tgt = new_target(None)
-    targets, selections = [(0.0, tgt)], []
-    n_c = n_i = 0
-    dwell_cell, dwell_t = None, 0
-    pending_click, last_click, inside = -1, -10**9, 0
-    stop_r = 0.35 * cell
-    for t in range(T):
-        # --- user: perceive delayed cursor, extrapolate, command velocity
-        td = max(0, t - user.delay_bins)
-        p_seen = path[td] if t > 0 else p
-        v_seen = (path[td] - path[max(0, td - 1)]) / DT if t > 1 else np.zeros(2)
-        # Internal forward model (efference copy): add the user's own recent intentions that
-        # cannot yet be visible, i.e. those issued within the visual delay + neural lead.
-        n_unseen = min(t, user.delay_bins + enc.fut)
-        p_hat = p_seen + DT * user.efference * rec_int[t - n_unseen : t].sum(0)
-        cmd = user.command(center_of(tgt), p_hat, stop_r)
-        v_int = v_int + (DT / user.tau_motor) * (cmd - v_int)
-        v_out = v_int + user.motor_noise * np.linalg.norm(v_int) * rng.standard_normal(2)
-        rec_int[t] = v_out
-        # --- neural encoding of the intention
-        hist = np.roll(hist, 1, axis=0)
-        hist[0] = v_out / enc.vscale
-        feat = enc.step_features(hist, p)
-        lr = _fast_mlp(enc, feat)
-        counts = rng.poisson(np.exp(np.clip(lr + noise[t], -10, 4))).astype(np.float32)
-        # --- decode and move the cursor
-        # Oracle: perfect decoding at the same latency as a real decoder (which estimates the
-        # intention ``enc.fut`` bins in the past, see EncodingModel.features).
-        v_dec = rec_int[max(0, t - enc.fut)] if decoder is None else decoder.step(counts)
-        v_s = smooth * v_s + (1 - smooth) * v_dec
-        p = np.clip(p + gain * DT * v_s, origin, origin + side)
-        path[t] = p
-        rec_dec[t], rec_counts[t], rec_tgt[t] = v_dec, counts, center_of(tgt)
-        # --- selection
-        sel = None
-        if cfg.selection == "dwell":
-            c = cell_of(p)
-            dwell_t = dwell_t + 1 if c == dwell_cell else 1
-            dwell_cell = c
-            if dwell_t * DT >= cfg.dwell_s:
-                sel, dwell_t = c, 0
+        if batched:
+            decoder.reset_batch(B)
         else:
-            # The user clicks only when the cursor *looks* inside the target (delayed view) and
-            # their forward model agrees it is still there.
-            in_tgt = max(np.max(np.abs(p_hat - center_of(tgt))), np.max(np.abs(p_seen - center_of(tgt)))) < 0.5 * cell
-            inside = inside + 1 if in_tgt else 0
-            slow = np.linalg.norm(v_seen) < cfg.click_speed_frac * user.vmax
-            if inside * DT >= cfg.click_hold_s and slow and pending_click < 0 and (t - last_click) * DT > cfg.click_refractory_s:
-                last_click = t
-                if rng.random() > cfg.click_miss_prob:
-                    pending_click = t + cfg.click_latency_bins
-            if pending_click < 0 and rng.random() < cfg.false_click_rate_hz * DT:
-                pending_click = t + cfg.click_latency_bins
-            if pending_click >= 0 and t >= pending_click:
-                sel, pending_click = cell_of(p), -1
-        if sel is not None:
-            ok = sel == tgt
-            selections.append((round((t + 1) * DT, 3), sel, bool(ok)))
-            if ok:
-                n_c += 1
-                tgt = new_target(tgt)
-                targets.append((round((t + 1) * DT, 3), tgt))
-            else:
-                n_i += 1
-    bps = webgrid_bitrate(n * n, n_c, n_i, cfg.seconds)
-    return WebGridResult(bps, n_c, n_i, cfg.seconds, n, path, targets, selections, rec_int, rec_dec, rec_counts,
-                         rec_tgt)
+            copies = [_copy.deepcopy(decoder) for _ in range(B)]
+            for c in copies:
+                c.reset()
+    C = enc.U.shape[0]
+    hist = np.zeros((B, enc.n_lags, 2), np.float32)
+    p = np.tile(np.asarray(cfg.center, np.float64), (B, 1))
+    path = np.zeros((B, T, 2))
+    rec_int, rec_dec = np.zeros((B, T, 2)), np.zeros((B, T, 2))
+    rec_counts, rec_tgt = np.zeros((B, T, C), np.float32), np.zeros((B, T, 2))
+    v_int, v_s = np.zeros((B, 2)), np.zeros((B, 2))
+    k_tgt = np.zeros(B, int)  # index into each session's target sequence
+    t_start = [[0.0] for _ in range(B)]
+    selections: list[list] = [[] for _ in range(B)]
+    n_c, n_i = np.zeros(B, int), np.zeros(B, int)
+    dwell_cell, dwell_t = np.full((B, 2), -1), np.zeros(B, int)
+    pending, last_click, inside = np.full(B, -1), np.full(B, -10**9), np.zeros(B, int)
+    stop_r = 0.35 * cell
+    ar = np.arange(B)
+
+    def centers(rc):  # (B, 2) (row, col) -> (B, 2) mm
+        return origin + (rc[:, ::-1] + 0.5) * cell
+
+    def cells_of(pp):
+        ij = np.clip(np.floor((pp - origin) / cell).astype(int), 0, n - 1)
+        return ij[:, ::-1]  # (row, col)
+
+    for t in range(T):
+        tc = centers(tgt_seq[ar, k_tgt])
+        # --- user: perceive delayed cursor, extrapolate with an efference copy, command velocity
+        td = max(0, t - user.delay_bins)
+        p_seen = path[:, td] if t > 0 else p
+        v_seen = (path[:, td] - path[:, max(0, td - 1)]) / DT if t > 1 else np.zeros((B, 2))
+        n_unseen = min(t, user.delay_bins + enc.fut)
+        p_hat = p_seen + DT * user.efference * rec_int[:, t - n_unseen : t].sum(1)
+        e = tc - p_hat
+        dist = np.linalg.norm(e, axis=1, keepdims=True)
+        cmd = user.vmax * (1 - np.exp(-dist / user.d0)) * e / np.maximum(dist, 1e-9)
+        cmd[dist[:, 0] < stop_r] = 0
+        v_int = v_int + (DT / user.tau_motor) * (cmd - v_int)
+        v_out = v_int + user.motor_noise * np.linalg.norm(v_int, axis=1, keepdims=True) * motor[t]
+        rec_int[:, t] = v_out
+        # --- neural encoding of the intention
+        hist = np.roll(hist, 1, axis=1)
+        hist[:, 0] = v_out / enc.vscale
+        cols = [hist.reshape(B, -1), np.linalg.norm(hist, axis=2)]
+        if enc.use_pos:
+            cols.append((p - enc.pos_center) / enc.pos_scale)
+        lam = np.exp(np.clip(_fast_mlp(enc, np.concatenate(cols, 1).astype(np.float32)) + latent[:, t], -10, 4))
+        counts = np.stack([z.pois.poisson(l) for z, l in zip(noise, lam)]).astype(np.float32)
+        # --- decode and move the cursor (oracle: true intention at a decoder's latency)
+        if decoder is None:
+            v_dec = rec_int[:, max(0, t - enc.fut)]
+        elif batched:
+            v_dec = np.asarray(decoder.step_batch(counts), np.float64)
+        else:
+            v_dec = np.stack([c.step(x) for c, x in zip(copies, counts)]).astype(np.float64)
+        v_s = smooth[:, None] * v_s + (1 - smooth[:, None]) * v_dec
+        p = np.clip(p + gain[:, None] * DT * v_s, origin, origin + side)
+        path[:, t] = p
+        rec_dec[:, t], rec_counts[:, t], rec_tgt[:, t] = v_dec, counts, tc
+        # --- selection
+        fire = np.zeros(B, bool)
+        if cfg.selection == "dwell":
+            c = cells_of(p)
+            same = np.all(c == dwell_cell, axis=1)
+            dwell_t = np.where(same, dwell_t + 1, 1)
+            dwell_cell = c
+            fire = dwell_t * DT >= cfg.dwell_s
+            dwell_t[fire] = 0
+        else:
+            in_tgt = np.maximum(np.max(np.abs(p_hat - tc), 1), np.max(np.abs(p_seen - tc), 1)) < 0.5 * cell
+            inside = np.where(in_tgt, inside + 1, 0)
+            slow = np.linalg.norm(v_seen, axis=1) < cfg.click_speed_frac * user.vmax
+            can = (inside * DT >= hold - 1e-9) & slow & (pending < 0) & ((t - last_click) * DT > cfg.click_refractory_s)
+            last_click[can] = t
+            pending[can & (u_miss[t] > cfg.click_miss_prob)] = t + cfg.click_latency_bins
+            spurious = (pending < 0) & (u_false[t] < cfg.false_click_rate_hz * DT)
+            pending[spurious] = t + cfg.click_latency_bins
+            fire = (pending >= 0) & (t >= pending)
+            pending[fire] = -1
+        if fire.any():
+            sel = cells_of(p)
+            for b in np.nonzero(fire)[0]:
+                rc = (int(sel[b, 0]), int(sel[b, 1]))
+                cur = tuple(int(v) for v in tgt_seq[b, k_tgt[b]])
+                ok = rc == cur
+                selections[b].append((round((t + 1) * DT, 3), rc, bool(ok)))
+                if ok:
+                    n_c[b] += 1
+                    k_tgt[b] += 1
+                    t_start[b].append(round((t + 1) * DT, 3))
+                else:
+                    n_i[b] += 1
+    out = []
+    for b in range(B):
+        targets = [(ts, tuple(int(v) for v in tgt_seq[b, k])) for k, ts in enumerate(t_start[b])]
+        out.append(WebGridResult(webgrid_bitrate(n * n, int(n_c[b]), int(n_i[b]), cfg.seconds), int(n_c[b]),
+                                 int(n_i[b]), cfg.seconds, n, path[b], targets, selections[b], rec_int[b], rec_dec[b],
+                                 rec_counts[b], rec_tgt[b]))
+    return out
 
 
 def _fast_mlp(enc: EncodingModel, feat: np.ndarray) -> np.ndarray:
@@ -361,7 +433,7 @@ def _fast_mlp(enc: EncodingModel, feat: np.ndarray) -> np.ndarray:
     if not hasattr(enc, "_np_layers"):
         enc._np_layers = [(m.weight.detach().numpy().T.copy(), m.bias.detach().numpy().copy())
                           for m in enc.net.net if isinstance(m, nn.Linear)]
-    h = feat
+    h = feat  # (F,) or (B, F)
     for i, (W, b) in enumerate(enc._np_layers):
         h = h @ W + b
         if i < len(enc._np_layers) - 1:

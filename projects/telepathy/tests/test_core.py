@@ -10,10 +10,14 @@ import torch
 from telepathy.align import FAStabilizedDecoder, procrustes
 from telepathy.data import Session
 from telepathy.features import DayData, channel_stats, lagged, make_day
-from telepathy.linear import KalmanFilter, WienerFilter
+from telepathy.clda import CLDAConfig, finetune_closed_loop, refit_labels
+from telepathy.linear import KalmanFilter, PVKalmanFilter, WienerFilter
+from telepathy.remap import ChannelMatcher, partial_shuffle, structured_candidates
+from telepathy.stats import holm, mean_ci, paired_test, pairwise
 from telepathy.metrics import r2_score, webgrid_bitrate
 from telepathy.models import GRUDecoder, StableLatentDecoder, alibi_band_bias
-from telepathy.simulator import (EncodingModel, UserModel, WebGridConfig, _EncNet, _fast_mlp, run_webgrid)
+from telepathy.simulator import (EncodingModel, UserModel, WebGridConfig, _EncNet, _fast_mlp, run_webgrid,
+                                 run_webgrid_batch)
 from telepathy.train import (AdaptConfig, TorchDecoder, TrainConfig, adapt_sld, gaussian_kl, latent_stats,
                              train_neural)
 
@@ -213,3 +217,116 @@ def test_webgrid_runs_and_bitrate_consistent():
     assert res.cursor.shape == (200, 2)
     assert res.bps == pytest.approx(webgrid_bitrate(25, res.n_correct, res.n_incorrect, 4))
     assert res.n_incorrect + res.n_correct == len(res.selections)
+
+
+# --------------------------------------------------------------------------- improvement round 2
+def test_pv_kalman_learns_streams_and_batches():
+    d = synthetic_day()
+    mu, sd = channel_stats(d.X[d.train])
+    seg = [(d.X[d.train], d.Y[d.train])]
+    for order, delay, sq in ((0, 0, False), (1, 1, False), (2, 0, True)):
+        k = PVKalmanFilter(3, obs_delay=delay, order=order, sqrt=sq).fit(seg, mu, sd)
+        assert r2_score(d.Y[d.test], k.predict(d.X)[d.test]) > 0.3
+        k.reset()
+        stream = np.array([k.step(x) for x in d.X[:80]])
+        np.testing.assert_allclose(stream, k.predict(d.X[:80]), atol=1e-3)
+    # pooled fit with per-segment statistics equals a fit on pre-normalised data
+    k1 = PVKalmanFilter(3).fit(seg, mu, sd, seg_stats=[(mu, sd)])
+    k2 = PVKalmanFilter(3).fit(seg, mu, sd)
+    np.testing.assert_allclose(k1.K, k2.K, atol=1e-8)
+
+
+def test_batched_streaming_equals_single_stream():
+    d = synthetic_day()
+    mu, sd = channel_stats(d.X[d.train])
+    seg = [(d.X[d.train], d.Y[d.train])]
+    X = np.stack([d.X[:60], d.X[100:160], d.X[300:360]], 1)  # (T, B, C)
+    decs = [WienerFilter(4, 10.0).fit(seg, mu, sd), KalmanFilter(3).fit(seg, mu, sd),
+            PVKalmanFilter(3, obs_delay=1).fit(seg, mu, sd),
+            TorchDecoder(GRUDecoder(24, hidden=8), 0, mu, sd, 2.0),
+            TorchDecoder(StableLatentDecoder(24, 1, d=8, backbone="gru"), 0, mu, sd, 2.0),
+            TorchDecoder(StableLatentDecoder(24, 1, d=8, window=4), 0, mu, sd, 2.0)]
+    for dec in decs:
+        dec.reset_batch(3)
+        batch = np.stack([dec.step_batch(x) for x in X], 1)
+        for b in range(3):
+            np.testing.assert_allclose(batch[b], dec.predict(X[:, b]), atol=1e-3)
+
+
+def test_batched_webgrid_sessions_independent_of_batch():
+    """Common random numbers: a session's result depends only on its seed, not on the batch."""
+    enc = _toy_encoder()
+    w = WienerFilter(2, 10.0)
+    w.mu, w.sd = np.ones(12, np.float32), np.ones(12, np.float32)
+    w.W = np.random.default_rng(0).standard_normal((25, 2)).astype(np.float32) * 5
+    cfg = WebGridConfig(grid=4, seconds=3, false_click_rate_hz=3.0)
+    batch = run_webgrid_batch(w, enc, UserModel(), cfg, [3, 4, 5], gain=[1.0, 1.5, 0.75], smooth=0.3)
+    for r, s, g in zip(batch, (3, 4, 5), (1.0, 1.5, 0.75)):
+        alone = run_webgrid(w, enc, UserModel(), cfg, gain=g, smooth=0.3, seed=s)
+        np.testing.assert_allclose(r.cursor, alone.cursor, atol=1e-4)  # BLAS rounding only
+        assert r.selections == alone.selections and r.bps == alone.bps
+    # oracle sessions with the same seed share targets regardless of decoder
+    o = run_webgrid_batch(None, enc, UserModel(), cfg, [3])[0]
+    assert o.targets[0] == batch[0].targets[0]
+
+
+def test_paired_stats():
+    rng = np.random.default_rng(0)
+    a = rng.normal(1.0, 0.3, 40)
+    b = a - 0.5 + rng.normal(0, 0.05, 40)
+    r = paired_test(a, b)
+    assert r["diff_ci95"][0] > 0.4 and r["p_wilcoxon"] < 1e-6
+    assert paired_test(a, a)["p_wilcoxon"] == 1.0
+    m = mean_ci(a)
+    assert m["ci95"][0] < m["mean"] < m["ci95"][1]
+    adj = holm({"x": 0.01, "y": 0.04, "z": 0.03})
+    assert adj == pytest.approx({"x": 0.03, "z": 0.06, "y": 0.06})
+    pw = pairwise({"a": a, "b": b, "c": a + 0.001 * rng.normal(size=40)})
+    assert pw["a vs b"]["significant"] and not pw["a vs c"]["significant"]
+
+
+def test_channel_matcher_recovers_block_remap():
+    """A connector-style block re-ordering is found from unlabelled spikes; normal days keep identity."""
+    rng = np.random.default_rng(0)
+    C, T = 24, 6000
+    rates = rng.gamma(2.0, 0.3, C)
+    L = rng.standard_normal((C, 3)) * 0.4
+    def day(seed):
+        r = np.random.default_rng(seed)
+        z = np.cumsum(r.standard_normal((T, 3)), 0) * 0.05
+        z = z - np.convolve(z[:, 0], np.ones(50) / 50, "same")[:, None]
+        return r.poisson(rates * np.exp(np.clip(z @ L.T, -3, 3))).astype(np.float32)
+    m = ChannelMatcher([day(1), day(2)], margin=0.05)
+    assert len(structured_candidates(C)) > 50
+    assert not m.match(day(3))["changed"]
+    true = structured_candidates(C)["b2_rb1_ri0_s0"]  # pair reversal
+    X = day(4)[:, true]
+    res = m.match(X)
+    assert np.array_equal(true[res["perm"]], np.arange(C))
+    sh, moved = partial_shuffle(C, 0.25, rng)
+    assert len(moved) == 6 and np.all(sh[moved] != moved)
+
+
+def test_refit_labels_and_closed_loop_finetune():
+    class R:  # minimal closed-loop record
+        grid = 2
+        cursor = np.array([[0.0, 0.0], [10.0, 10.0]])
+        target_pos = np.array([[10.0, 0.0], [10.0, 10.0]])
+        decoded = np.array([[0.0, 3.0], [5.0, 5.0]])
+        counts = np.zeros((2, 4), np.float32)
+    (_, y), = refit_labels([R()], side_mm=40.0)
+    np.testing.assert_allclose(y[0], [3.0, 0.0], atol=1e-6)  # rotated toward target, speed kept
+    np.testing.assert_allclose(y[1], [0.0, 0.0])  # on the target: zero
+    d = synthetic_day(T=1500)
+    mu, sd = channel_stats(d.X[d.train])
+    m = StableLatentDecoder(24, 1, d=16, backbone="gru")
+    dec = TorchDecoder(m, 0, mu, sd, 50.0)
+    seg = [(d.X[d.train], d.Y[d.train])]
+    before = r2_score(d.Y[d.test], dec.predict(d.X)[d.test])
+    new = finetune_closed_loop(dec, seg, CLDAConfig(steps=60, lr_adapter=3e-3, window=48, warmup_bins=8))
+    assert r2_score(d.Y[d.test], new.predict(d.X)[d.test]) > before
+    # adapter-only: shared weights unchanged
+    torch.testing.assert_close(new.model.readin.weight, m.readin.weight)
+    g = TorchDecoder(GRUDecoder(24, hidden=16), 0, mu, sd, 50.0)
+    g2 = finetune_closed_loop(g, seg, CLDAConfig(steps=5, window=48, warmup_bins=8), offline=seg)
+    assert not torch.equal(g2.model.out.weight, g.model.out.weight)
