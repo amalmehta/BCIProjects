@@ -134,14 +134,16 @@ def export_decoding(n_trials: int = 4, window: int = 400, stride: int = 2) -> di
         tr = {"day": b.day.isoformat(), "days_since_training": (b.day - last).days,
               "t": [round(i * 0.02, 2) for i in range(0, window, stride)], "dof_names": DOF_NAMES,
               "true": _r(y[sl].tolist(), 3)}
-        for name, key in [("proposed", "ms_gru"), ("wiener", "wiener"), ("gru", "gru")]:
+        for name, key in [("proposed", "ms_gru"), ("wiener", "wiener"), ("gru", "gru"),
+                          ("proposed_label_free", "ms_gru_unsup_kl")]:
             k = f"{key}|{b.key}"
             if k in preds.files:
                 tr[name] = _r(preds[k][sl].tolist(), 3)
         trials.append(tr)
     return {"description": "Held-out FALCON H1 test blocks (later days than any training data). Velocities are "
                            "z-scored per DoF. 'proposed' = multi-day GRU with a 45 s supervised read-in "
-                           "recalibration; 'wiener' = Wiener filter zero-shot; 'gru' = GRU fine-tuned on 45 s.",
+                           "recalibration; 'wiener' = Wiener filter zero-shot; 'gru' = GRU fine-tuned on 45 s; "
+                           "'proposed_label_free' = multi-day GRU with a label-free (KL-aligned) read-in.",
             "bin_s": 0.02 * stride, "trials": trials}
 
 
@@ -150,9 +152,25 @@ def export_metrics() -> dict:
     c = json.loads((RESULTS_ROOT / "closed_loop_metrics.json").read_text())
     within = [{"decoder": k, "label": DECODER_LABELS.get(k, k), "r2_vw": _r(v["r2_vw_mean"]),
                "r2_vw_std": _r(v.get("r2_vw_seed_std", v.get("r2_vw_std"))),
-               "r2_per_dof": _r(v["r2_pooled_per_dof"])} for k, v in d["within"].items()]
+               "r2_per_dof": _r(v["r2_pooled_per_dof"]),
+               "r2_vw_ci95": _r(v.get("r2_vw_ci95")), "n_seeds": v.get("n_seeds", 1),
+               "r2_vw_per_seed": _r(v.get("r2_vw_per_seed"))} for k, v in d["within"].items()]
     cross = [{"setting": k, "r2_vw": _r(v["r2_vw_mean"]), "r2_vw_seed_std": _r(v.get("r2_vw_seed_std")),
-              "r2_per_day": _r(v["r2_vw_blocks"])} for k, v in d["cross"].items()]
+              "r2_per_day": _r(v["r2_vw_blocks"]),
+              "r2_vw_ci95": _r(v.get("r2_vw_ci95")), "n_seeds": v.get("n_seeds", 1)} for k, v in d["cross"].items()]
+    lf = {}
+    for m in ("ms_gru", "gru", "transformer"):
+        if f"{m}_unsup_kl" in d["cross"]:
+            lf[m] = {k: {"r2_vw": _r(d["cross"][f"{m}_{k}"]["r2_vw_mean"]),
+                         "r2_vw_ci95": _r(d["cross"][f"{m}_{k}"].get("r2_vw_ci95")),
+                         "r2_vw_seed_std": _r(d["cross"][f"{m}_{k}"].get("r2_vw_seed_std"))}
+                     for k in ("zs_fixednorm", "zeroshot", "unsup_center", "unsup_coral", "unsup_kl")
+                     if f"{m}_{k}" in d["cross"]}
+    label_free = {"note": "No labels from the new day: block A's neural data only. zs_fixednorm = no per-day "
+                          "re-normalisation; zeroshot = per-channel z-scoring to block A; unsup_center / unsup_coral "
+                          "= latent mean / mean+covariance matching of the read-in output to the held-in days; "
+                          "unsup_kl = KL alignment of read-in and core-state Gaussians (NoMAD-style).",
+                  "models": lf} if lf else None
     nk = str(c["nominal_kappa"])
     cols = ("success", "success_ci95", "wrong_grasp", "timeout", "time_to_grasp_mean", "path_eff", "user_share",
             "mean_alpha", "yield_latency_median")
@@ -166,7 +184,12 @@ def export_metrics() -> dict:
     return {
         "decoding": {"dataset": "FALCON H1 (DANDI 000954)", "metric": "R² variance-weighted (FALCON), mean over blocks",
                      "dof_names": DOF_NAMES, "held_in_minival": within, "held_out_days": cross,
-                     "days_since_train": d["meta"]["days_since_train"]},
+                     "days_since_train": d["meta"]["days_since_train"],
+                     "label_free_recalibration": label_free,
+                     "paired_tests": _r(d.get("paired_tests", {})),
+                     "uncertainty": "r2_vw_ci95 = percentile bootstrap 95% CI over test blocks (13 minival blocks / "
+                                    "7 held-out days) of the seed-averaged per-block R²; paired tests = exact "
+                                    "sign-flip permutation test on per-block differences."},
         "shared_autonomy": {"note": "Simulated closed loop, not human-in-the-loop.",
                             "nominal_decoder_offline_r2": _r(c["levels"][nk]["offline_r2"]),
                             "real_session_r2": _r(c["real_session_r2"]),
@@ -179,8 +202,31 @@ def export_metrics() -> dict:
                                               for s in v} for k, v in c["ablations"].items()},
                             "ablations_weakest_decoder": {k: {s: {kk: _r(v[s][kk]) for kk in ("success", "wrong_grasp")}
                                                               for s in v} for k, v in c.get("ablations_hard", {}).items()},
-                            "paired_tests": c["tests"]},
+                            "paired_tests": c["tests"],
+                            "real_residuals": export_real_residuals(cols)},
     }
+
+
+def export_real_residuals(cols) -> dict | None:
+    """Closed loop driven by real FALCON H1 decoder residuals (new key; the synthetic keys are unchanged)."""
+    path = RESULTS_ROOT / "closed_loop_real_metrics.json"
+    if not path.exists():
+        return None
+    r = json.loads(path.read_text())
+    out = {"note": "Decoder noise replayed from real held-out FALCON H1 decoder errors: z_hat = FIR(intended "
+                   "velocity) + speed-scaled, block-bootstrapped real residuals. Methods re-tuned on separate seeds.",
+           "primary": r["primary"], "tuned": r["tuning"]["chosen"], "sources": {}}
+    for name, v in r["sources"].items():
+        st = v["residual_stats"]
+        out["sources"][name] = {
+            "decoder_preds": v["preds"], "conditioned": v["conditioned"],
+            "real_offline_r2": _r(st["real_r2_vw"]), "fir_r2": _r(st["fir_r2_vw"]),
+            "sim_offline_r2": _r(v["sim_offline_r2"]), "err_tau_ticks": _r(v["err_tau"], 2),
+            "residual_tau_ticks": _r(st["resid_tau_ticks"], 2), "n_bins": st["n_bins"],
+            **{scen: {m: {k: _r(v[scen][m][k]) for k in cols} | {"label": METHOD_LABELS[m]} for m in r["methods"]}
+               for scen in ("standard", "change_of_mind", "clutter")},
+            "paired_tests": v["tests"], "n_episodes": v["n_episodes"]}
+    return out
 
 
 def main() -> None:
@@ -190,7 +236,7 @@ def main() -> None:
     (OUT / "metrics.json").write_text(json.dumps(export_metrics(), indent=1))
     for png in ("decoding_within.png", "decoding_cross_session.png", "success_vs_r2.png", "change_of_mind.png",
                 "goal_inference.png", "example_episodes.png", "arm_3d.png", "ablations.png", "decoding_traces.png",
-                "authority_tradeoff.png"):
+                "authority_tradeoff.png", "label_free_recal.png", "real_residuals.png"):
         src = RESULTS_ROOT / "figures" / png
         if src.exists():
             shutil.copy(src, OUT / png)

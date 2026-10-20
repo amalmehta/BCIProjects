@@ -61,7 +61,10 @@ def fig_decoding_within(d: dict) -> None:
     names = [k for k in DECODER_STYLE if k in d["within"]]
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(9.5, 3.2), gridspec_kw={"width_ratios": [1, 1.5]})
     vals = [d["within"][k]["r2_vw_mean"] for k in names]
-    errs = [d["within"][k].get("r2_vw_seed_std", 0.0) for k in names]
+    # bootstrap 95% CI over test blocks when available, else seed std
+    errs = np.array([[v - d["within"][k]["r2_vw_ci95"][0], d["within"][k]["r2_vw_ci95"][1] - v]
+                     if "r2_vw_ci95" in d["within"][k] else [d["within"][k].get("r2_vw_seed_std", 0.0)] * 2
+                     for k, v in zip(names, vals)]).T.clip(0, None)
     y = np.arange(len(names))
     a1.barh(y, vals, xerr=errs, color=[DECODER_STYLE[k][1] for k in names], height=0.6,
             error_kw={"ecolor": INK, "elinewidth": 1, "capsize": 2})
@@ -69,7 +72,7 @@ def fig_decoding_within(d: dict) -> None:
         a1.text(v + 0.01, i, f"{v:.2f}", va="center", fontsize=8, color=INK)
     a1.set_yticks(y, [DECODER_STYLE[k][0] for k in names])
     a1.invert_yaxis()
-    a1.set_xlabel("R² (FALCON variance-weighted)")
+    a1.set_xlabel("R² (FALCON variance-weighted), 95% CI over blocks")
     a1.set_title("Held-in sessions (minival)")
     a1.grid(axis="y", visible=False)
     M = np.array([[d["within"][k]["r2_pooled_per_dof"][dof] for dof in DOF_NAMES] for k in names])
@@ -129,6 +132,90 @@ def fig_cross_session(d: dict) -> None:
     a2.legend(fontsize=7)
     fig.tight_layout()
     _save(fig, "decoding_cross_session.png")
+
+
+LABEL_FREE = [("zs_fixednorm", "zero-shot, no re-normalisation"), ("zeroshot", "zero-shot (block-A z-score)"),
+              ("unsup_center", "+ latent re-centring"), ("unsup_coral", "+ latent moment matching"),
+              ("unsup_kl", "+ KL alignment (NoMAD-style)")]
+
+
+def fig_label_free(d: dict) -> None:
+    """Label-free recalibration vs zero-shot and supervised read-in (improvement 9)."""
+    c = d["cross"]
+    models = [("ms_gru", "Multi-day GRU", BLUE), ("gru", "GRU", ORANGE), ("transformer", "Causal Transformer", AQUA)]
+    models = [m for m in models if f"{m[0]}_zeroshot" in c]
+    if not models or "ms_gru_unsup_kl" not in c:
+        return
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(10, 3.4), gridspec_kw={"width_ratios": [1.4, 1]})
+    w = 0.8 / len(models)
+    for i, (m, lab, col) in enumerate(models):
+        vals, lo, hi = [], [], []
+        for k, _ in LABEL_FREE:
+            e = c.get(f"{m}_{k}")
+            v = e["r2_vw_mean"] if e else np.nan
+            ci = e.get("r2_vw_ci95", [v, v]) if e else [np.nan, np.nan]
+            vals.append(v)
+            lo.append(v - ci[0])
+            hi.append(ci[1] - v)
+        x = np.arange(len(LABEL_FREE)) + (i - (len(models) - 1) / 2) * w
+        a1.bar(x, vals, w * 0.92, color=col, label=lab, yerr=np.clip(np.nan_to_num([lo, hi]), 0, None),
+               error_kw={"ecolor": INK, "elinewidth": 0.8, "capsize": 1.5})
+    a1.set_xticks(range(len(LABEL_FREE)), [t for _, t in LABEL_FREE], rotation=18, ha="right", fontsize=7.5)
+    a1.axhline(0, color=MUTED, lw=0.8)
+    a1.set_ylabel("R² on held-out test block")
+    a1.set_title("No labels from the new day (3 seeds, 95% CI over 7 days)")
+    a1.legend(fontsize=7)
+    a1.grid(axis="x", visible=False)
+    ks = d["meta"]["recal_seconds"]
+    e0 = c["ms_gru_unsup_kl"]
+    a2.axhspan(*e0["r2_vw_ci95"], color=BLUE, alpha=0.12, lw=0)
+    a2.axhline(e0["r2_vw_mean"], color=BLUE, ls="--", lw=1.2, label="Multi-day GRU, label-free KL")
+    if "transformer_zeroshot" in c:
+        a2.axhline(c["transformer_zeroshot"]["r2_vw_mean"], color=AQUA, ls=":", lw=1.4, label="Transformer zero-shot")
+    xs = [k for k in ks if f"ms_gru_{k}s" in c]
+    a2.errorbar(xs, [c[f"ms_gru_{k}s"]["r2_vw_mean"] for k in xs],
+                yerr=np.array([[c[f"ms_gru_{k}s"]["r2_vw_mean"] - c[f"ms_gru_{k}s"]["r2_vw_ci95"][0],
+                                c[f"ms_gru_{k}s"]["r2_vw_ci95"][1] - c[f"ms_gru_{k}s"]["r2_vw_mean"]] for k in xs]).T.clip(0, None),
+                fmt="-o", color=BLUE, ms=4, capsize=2, label="Multi-day GRU, supervised read-in")
+    a2.set_xlabel("Labelled seconds from the new day")
+    a2.set_ylabel("R²")
+    a2.set_title("Label-free vs supervised read-in")
+    a2.legend(fontsize=7, loc="lower right")
+    fig.tight_layout()
+    _save(fig, "label_free_recal.png")
+
+
+def fig_real_residuals(r: dict, c: dict) -> None:
+    """DASA's advantage under synthetic vs real-residual decoder noise (improvement 10)."""
+    srcs = [("synthetic", "Synthetic noise model", None)] + [
+        (k, {"wiener_within": "Real Wiener residuals", "wiener_within_raw": "Real Wiener, raw bootstrap",
+             "proposed_within": "Real multi-day GRU residuals",
+             "wiener_crossday": "Real zero-shot Wiener (later days)"}.get(k, k), v)
+        for k, v in r["sources"].items()]
+    scen = [("standard", "Standard"), ("change_of_mind", "Change of mind"), ("clutter", "Clutter")]
+    methods = [m for m in METHOD_STYLE if m in r["methods"]][::-1]
+    fig, axes = plt.subplots(1, 3, figsize=(11, 3.6), sharey=True)
+    nk = str(c["nominal_kappa"])
+    w = 0.8 / len(methods)
+    for ax, (sk, st) in zip(axes, scen):
+        for j, m in enumerate(methods):
+            vals, lo, hi = [], [], []
+            for name, _, v in srcs:
+                e = (c["main"][nk] if sk == "standard" else c[sk])[m] if v is None else v[sk][m]
+                vals.append(e["success"])
+                lo.append(e["success"] - e["success_ci95"][0])
+                hi.append(e["success_ci95"][1] - e["success"])
+            x = np.arange(len(srcs)) + (j - (len(methods) - 1) / 2) * w
+            ax.bar(x, vals, w * 0.92, color=METHOD_STYLE[m][1], label=METHOD_STYLE[m][0] if sk == "standard" else None,
+                   yerr=np.clip([lo, hi], 0, None), error_kw={"ecolor": INK, "elinewidth": 0.6, "capsize": 1})
+        ax.set_xticks(range(len(srcs)), [s[1] for s in srcs], rotation=25, ha="right", fontsize=7)
+        ax.set_title(st)
+        ax.grid(axis="x", visible=False)
+        ax.set_ylim(0, 1.05)
+    axes[0].set_ylabel("Grasp success (95% Wilson CI)")
+    fig.legend(loc="upper center", ncol=len(methods), fontsize=7.5, bbox_to_anchor=(0.5, 1.06))
+    fig.tight_layout()
+    _save(fig, "real_residuals.png")
 
 
 def fig_traces(traces: dict) -> None:
@@ -368,6 +455,7 @@ def main() -> None:
         d = json.loads(dec_path.read_text())
         fig_decoding_within(d)
         fig_cross_session(d)
+        fig_label_free(d)
         if (RESULTS_ROOT / "decoding_preds.npz").exists():
             from .export import export_decoding
 
@@ -382,6 +470,9 @@ def main() -> None:
         show = json.loads((RESULTS_ROOT / "closed_loop_showcase.json").read_text())
         fig_episodes(show)
         fig_arm(show)
+        real_path = RESULTS_ROOT / "closed_loop_real_metrics.json"
+        if real_path.exists():
+            fig_real_residuals(json.loads(real_path.read_text()), c)
     print(f"figures written to {FIG}")
 
 
