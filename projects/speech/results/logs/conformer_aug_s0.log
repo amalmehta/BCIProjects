@@ -1,0 +1,2 @@
+[conformer_aug] train=1925 dev=215 test=426 days=11
+{"step": 50, "loss": 2.6048851013183594, "dev_per": 0.7196864111498258, "minutes": 1.3308037519454956, "lr": 0.001}
