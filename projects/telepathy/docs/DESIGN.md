@@ -39,12 +39,15 @@ flowchart LR
 |---|---|
 | `telepathy/data.py` | Download each session from Zenodo (curl), merge every sorted unit and the hash unit of an M1 electrode into one threshold-crossing count per 20 ms bin, compute smoothed cursor velocity, save a ~0.7 MB `.npz`, delete the raw file. Resumable. |
 | `telepathy/features.py` | `DayData`: spikes at t paired with velocity at t + lag; 60/10/30 % time split; few-shot slices = first N reaches; lag features. |
-| `telepathy/linear.py` | `Decoder` interface (`predict`, `reset`/`step`, `with_stats`), ridge Wiener filter (optionally shrunk toward prior weights), steady-state velocity Kalman filter. |
+| `telepathy/linear.py` | `Decoder` interface (`predict`, `reset`/`step`, batched `reset_batch`/`step_batch`, `with_stats`), ridge Wiener filter (optionally shrunk toward prior weights), the old steady-state velocity Kalman filter (kept as `kalman_v1`), and `PVKalmanFilter`: position-velocity(-acceleration) state, tunable bin width (causal boxcar), extra neural lead, optional square-root counts, steady-state gain; this is the strong Kalman / ReFIT-KF baseline. |
+| `telepathy/remap.py` | Label-free channel re-matching: per-channel statistics (rate, sd, Fano factor at 20/100 ms, autocorrelation) and channel-correlation matrices; structured hypothesis search over ~500 block re-orderings (connector/bank style) with an identity margin; optional Hungarian refinement; the stress-test partial shuffle. |
+| `telepathy/clda.py` | ReFIT intention re-labelling of closed-loop sessions; closed-loop fine-tuning of the GRU (all weights, small lr) and SLD (adapter only, or adapter + velocity head), with rehearsal of offline calibration data. |
+| `telepathy/stats.py` | Bootstrap CIs, paired Wilcoxon signed-rank tests, Holm correction, all-pairs comparison. |
 | `telepathy/align.py` | Degenhart-style stabiliser: factor analysis + iterative stable-channel Procrustes alignment + fixed latent decoder. |
 | `telepathy/models.py` | `GRUDecoder` baseline; `StableLatentDecoder` (SLD): per-day identity-initialised channel adapter, shared read-in, causal GRU (or banded ALiBi transformer) backbone, velocity head, per-day Poisson rate head. |
 | `telepathy/train.py` | Training with Sussillo-style augmentation and masked-channel Poisson loss; `TorchDecoder` wrapper; NoMAD-style unsupervised adapter alignment (masked spike likelihood + Gaussian KL to calibration latents + identity penalty); few-shot adapter / GRU fine-tuning. CUDA + AMP when available. |
-| `telepathy/simulator.py` | Encoding model (MLP from intended-velocity history to log-rates, low-rank AR(1) latent noise calibrated to match real decoding R^2), user model, WebGrid task with click or dwell selection and the achieved-bitrate metric. |
-| `telepathy/experiments.py` | Cached stages: `prep`, `train`, `eval`, `fewshot`, `stress`, `sim`, `export`. |
+| `telepathy/simulator.py` | Encoding model (MLP from intended-velocity history to log-rates, low-rank AR(1) latent noise calibrated to match real decoding R^2), user model, WebGrid task with click or dwell selection and the achieved-bitrate metric. `run_webgrid_batch` runs many sessions in lock-step (vectorised over sessions; per-session gain/smoothing/hold so a whole tuning grid is one batch) with common random numbers: the target sequence, latent noise, motor noise and click randomness depend only on the session seed, so all decoders are compared on identical sessions. |
+| `telepathy/experiments.py` | Cached stages: `prep`, `train`, `eval`, `kalman`, `remap`, `fewshot`, `stress`, `sim`, `simabl`, `clda`, `export`. |
 | `telepathy/export.py` | All figures, `metrics.json` and `results/site_export/` built only from result files. |
 | `telepathy/metrics.py` | R^2 and WebGrid bitrate. |
 
