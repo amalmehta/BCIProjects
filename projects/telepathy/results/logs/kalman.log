@@ -156,3 +156,7 @@
 [14:44:53] KF-PV pooled {'smooth_bins': 8, 'obs_delay': 2, 'order': 1, 'q_scale': 2.0, 'sqrt': True}: anchor val R2 0.3456 (1581s)
 [14:45:06] KF-PV pooled {'smooth_bins': 8, 'obs_delay': 2, 'order': 2, 'q_scale': 0.5, 'sqrt': False}: anchor val R2 0.3433 (1594s)
 [14:45:17] KF-PV pooled {'smooth_bins': 8, 'obs_delay': 2, 'order': 2, 'q_scale': 0.5, 'sqrt': True}: anchor val R2 0.2908 (1604s)
+[14:45:30] KF-PV pooled {'smooth_bins': 8, 'obs_delay': 2, 'order': 2, 'q_scale': 1.0, 'sqrt': False}: anchor val R2 0.4139 (1618s)
+[14:45:43] KF-PV pooled {'smooth_bins': 8, 'obs_delay': 2, 'order': 2, 'q_scale': 1.0, 'sqrt': True}: anchor val R2 0.3759 (1631s)
+[14:45:57] KF-PV pooled {'smooth_bins': 8, 'obs_delay': 2, 'order': 2, 'q_scale': 2.0, 'sqrt': False}: anchor val R2 0.4443 (1645s)
+[14:46:09] KF-PV pooled {'smooth_bins': 8, 'obs_delay': 2, 'order': 2, 'q_scale': 2.0, 'sqrt': True}: anchor val R2 0.4145 (1657s)
