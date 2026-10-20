@@ -306,3 +306,7 @@
 14:29:25 [mnist/main/s0] step=700 loss=0.1342 recon=0.005886 percept=0.1179 charge=0.2071 elapsed_s=1336
 14:34:04 [letters/main/s0] step=800 loss=0.1884 recon=0.006812 percept=0.1705 charge=0.221 elapsed_s=1616
 14:34:41 [mnist/main/s0] step=800 loss=0.1294 recon=0.005696 percept=0.113 charge=0.2131 elapsed_s=1652
+14:38:33 [letters/main/s0] step=900 loss=0.2075 recon=0.007902 percept=0.1876 charge=0.2389 elapsed_s=1885
+14:39:06 [mnist/main/s0] step=900 loss=0.1226 recon=0.006113 percept=0.106 charge=0.2096 elapsed_s=1917
+14:42:33 [letters/main/s0] step=1000 loss=0.2274 recon=0.01 percept=0.2058 charge=0.2319 elapsed_s=2125
+14:43:05 [mnist/main/s0] step=1000 loss=0.1409 recon=0.006534 percept=0.1241 charge=0.2058 elapsed_s=2157

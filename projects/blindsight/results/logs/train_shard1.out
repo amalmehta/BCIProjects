@@ -11,3 +11,5 @@
 14:23:03 [letters/main/s0] step=600 loss=0.1933 recon=0.008913 percept=0.1732 charge=0.2243 elapsed_s=954.6
 14:28:45 [letters/main/s0] step=700 loss=0.2132 recon=0.008121 percept=0.1939 charge=0.2223 elapsed_s=1297
 14:34:04 [letters/main/s0] step=800 loss=0.1884 recon=0.006812 percept=0.1705 charge=0.221 elapsed_s=1616
+14:38:33 [letters/main/s0] step=900 loss=0.2075 recon=0.007902 percept=0.1876 charge=0.2389 elapsed_s=1885
+14:42:33 [letters/main/s0] step=1000 loss=0.2274 recon=0.01 percept=0.2058 charge=0.2319 elapsed_s=2125
