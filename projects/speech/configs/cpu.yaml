@@ -30,7 +30,7 @@ data:
 train:
   batch_size: 32
   max_steps: 480          # CPU: ~40-50 min per run on a shared 8-core Mac (published: 120k steps of batch 64)
-  max_minutes: 75         # safety stop only
+  max_minutes: 150        # safety stop only (the shared machine ran at load 70-200 during this round)
   schedule: steps         # cosine decay over steps (equal optimisation budget for every model)
   lr: 0.002
   lr_min_ratio: 0.02
