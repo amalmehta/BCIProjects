@@ -40,6 +40,11 @@ def bin_trial(t: Trial, factor: int) -> Trial:
     return Trial(x.astype(np.float16), t.phones, t.sentence, t.day, t.session, t.block)
 
 
+def scale_trial(t: Trial, scale: float) -> Trial:
+    """Multiply a trial's features by a global constant (input re-standardisation)."""
+    return Trial((t.features.astype(np.float32) * scale).astype(np.float16), t.phones, t.sentence, t.day, t.session, t.block)
+
+
 _CACHE: dict = {}
 
 
@@ -81,6 +86,14 @@ def prepare_data(dcfg: dict, data_dir: str) -> dict[str, list[Trial]]:
             for t in ts:
                 t.day = day
             out[name] = [bin_trial(t, f) for t in ts]
+    scale = dcfg.get("input_scale", 1.0)
+    if scale == "auto":  # re-standardise after binning: averaging k bins shrinks the std by ~1/sqrt(k)
+        scale = 1.0 / float(np.concatenate([t.features[::4].astype(np.float32).ravel() for t in train]).std())
+    scale = float(scale)
+    if scale != 1.0:
+        for split in ("train", "dev", "test", "heldout_train", "heldout_test"):
+            out[split] = [scale_trial(t, scale) for t in out[split]]
+    out["input_scale"] = scale
     out["n_days"] = len(all_sessions)
     out["sessions"] = all_sessions
     _CACHE[key] = out
@@ -202,9 +215,22 @@ def train_loop(model, train: list[Trial], dev: list[Trial], rc: dict, device, se
     t0, step, best, best_state, hist = time.time(), 0, float("inf"), None, []
     batches: list[list[int]] = []
     feasible = [t for t in train if (t.features.shape[0] - rc["model"]["patch_size"]) // rc["model"]["patch_stride"] + 1 >= len(t.phones)]
-    while step < total and (time.time() - t0) / 60 < tcfg["max_minutes"]:
+    # Curriculum (SortaGrad-style, Amodei et al. 2016): for the first ``curriculum_steps`` steps
+    # sample only the shorter ``curriculum_frac`` of utterances, where CTC alignment is easiest.
+    cur_steps = int(tcfg.get("curriculum_steps", 0) or 0)
+    short = sorted(feasible, key=lambda t: t.features.shape[0])[: max(1, int(len(feasible) * tcfg.get("curriculum_frac", 0.5)))]
+    in_curriculum = cur_steps > 0
+    trace_path = log_path.with_name("trace.jsonl") if log_path else None
+    if trace_path:
+        trace_path.unlink(missing_ok=True)
+    trace_buf: list[str] = []
+    stop = min(total, int(tcfg.get("stop_step") or total))  # stop early without changing the LR schedule (diagnostics)
+    while step < stop and (time.time() - t0) / 60 < tcfg["max_minutes"]:
+        if in_curriculum and step >= cur_steps:
+            in_curriculum, batches = False, []
         if not batches:
-            batches = length_batches(feasible, tcfg["batch_size"], rng)
+            batches = length_batches(short if in_curriculum else feasible, tcfg["batch_size"], rng)
+        pool = short if in_curriculum else feasible
         # Cosine schedule over steps, or (CPU budget mode) over the wall-clock budget,
         # so that a run on a slower/shared machine still completes its schedule.
         if by_time:
@@ -216,7 +242,7 @@ def train_loop(model, train: list[Trial], dev: list[Trial], rc: dict, device, se
         for g, b in zip(opt.param_groups, base_lrs):
             g["lr"] = b * factor
         model.train()
-        x, x_len, y, y_len, day, _ = make_batch(feasible, batches.pop())
+        x, x_len, y, y_len, day, _ = make_batch(pool, batches.pop())
         x, x_len = augment_batch(x, x_len, aug)
         x, x_len, y, y_len, day = (v.to(device) for v in (x, x_len, y, y_len, day))
         with torch.autocast(device.type, enabled=use_amp):
@@ -227,10 +253,24 @@ def train_loop(model, train: list[Trial], dev: list[Trial], rc: dict, device, se
         opt.zero_grad(set_to_none=True)
         scaler.scale(loss).backward()
         scaler.unscale_(opt)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), tcfg["grad_clip"])
+        gnorm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), tcfg["grad_clip"]))
         scaler.step(opt)
         scaler.update()
         step += 1
+        if trace_path:
+            # per-step training diagnostics: loss, pre-clip gradient norm, fraction of frames whose argmax is blank
+            with torch.no_grad():
+                L = out["lengths"]
+                valid = torch.arange(out["log_probs"].shape[1], device=L.device)[None, :] < L[:, None]
+                blank = ((out["log_probs"].argmax(-1) == 0) & valid).sum().item() / max(1, valid.sum().item())
+                pblank = float(out["log_probs"][..., 0].exp()[valid].mean())
+            trace_buf.append(json.dumps({"step": step, "loss": round(float(loss), 4), "grad_norm": round(gnorm, 4),
+                                         "lr": opt.param_groups[0]["lr"], "blank_argmax_frac": round(blank, 4),
+                                         "mean_p_blank": round(pblank, 4)}))
+            if len(trace_buf) >= 10:
+                with open(trace_path, "a") as f:
+                    f.write("\n".join(trace_buf) + "\n")
+                trace_buf = []
         if step % tcfg["eval_every"] == 0 or step == total:
             per = greedy_per(posteriors(model, dev, device), dev)
             rec = {"step": step, "loss": float(loss), "dev_per": per, "minutes": (time.time() - t0) / 60, "lr": opt.param_groups[0]["lr"]}
@@ -242,6 +282,9 @@ def train_loop(model, train: list[Trial], dev: list[Trial], rc: dict, device, se
             if per < best:
                 best = per
                 best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+    if trace_path and trace_buf:
+        with open(trace_path, "a") as f:
+            f.write("\n".join(trace_buf) + "\n")
     # Final evaluation if the time budget ended between evaluations.
     if not hist or hist[-1]["step"] != step:
         per = greedy_per(posteriors(model, dev, device), dev)

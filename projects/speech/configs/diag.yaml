@@ -1,0 +1,13 @@
+# Diagnostic probes of CTC training instability (first 150 of 480 steps, same LR schedule).
+# Used by scripts/run_cpu.sh only when DIAG=1; results go to results/diag/.
+base: cpu.yaml
+results_dir: results/diag
+train:
+  stop_step: 150
+  eval_every: 50
+runs:
+  gru_old:                # last round's recipe, unchanged
+    model: gru
+  gru_old_clip1:          # + tighter gradient clipping only
+    model: gru
+    train: {grad_clip: 1.0}

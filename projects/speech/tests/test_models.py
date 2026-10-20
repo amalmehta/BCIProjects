@@ -62,3 +62,15 @@ def test_day_layers_start_as_identity_and_are_day_specific():
     assert torch.equal(m.day.weight[1], torch.eye(512))
     shared = GRUDecoder(3, per_day=False, **SMALL_GRU)
     assert shared.day.weight.shape[0] == 1
+
+
+def test_blank_bias_initialisation_sets_initial_blank_posterior():
+    import math
+
+    from speech.models import ConformerDecoder, GRUDecoder
+
+    for cls, kw in ((GRUDecoder, dict(hidden=16, layers=1)), (ConformerDecoder, dict(d_model=16, layers=1, heads=2, bottleneck=8))):
+        m = cls(1, patch_size=3, patch_stride=2, blank_bias=4.0, **kw)
+        assert m.out.bias[0].item() == 4.0 and m.out.bias[1:].abs().sum().item() == 0.0
+        # with the bias alone, p(blank) = e^4 / (e^4 + 40)
+        assert math.exp(4) / (math.exp(4) + 40) > 0.5

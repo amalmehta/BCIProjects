@@ -46,6 +46,21 @@ class DayInputLayers(nn.Module):
         return self.drop(F.softsign(x))
 
 
+def init_blank_bias(linear: nn.Linear, blank_bias: float | None) -> None:
+    """Initialise the CTC read-out so the blank starts with a chosen logit offset.
+
+    With zero weights' contribution the initial posterior of blank is
+    ``e^b / (e^b + C - 1)``; a positive ``b`` starts the model near the frame-level
+    blank prior (most CTC frames are blank), so early gradients go into the
+    label logits rather than into first learning to emit blanks.
+    """
+    if blank_bias is None:
+        return
+    with torch.no_grad():
+        linear.bias.zero_()
+        linear.bias[0] = float(blank_bias)
+
+
 def patch(x: torch.Tensor, size: int, stride: int) -> torch.Tensor:
     """Concatenate ``size`` consecutive bins every ``stride`` bins: (B,T,F)->(B,T',size*F)."""
     x = x.unfold(1, size, stride)  # (B, T', F, size)
@@ -73,6 +88,7 @@ class GRUDecoder(nn.Module):
         bidirectional: bool = False,
         per_day: bool = True,
         smooth_std: float = 2.0,
+        blank_bias: float | None = None,
     ):
         super().__init__()
         self.patch_size, self.patch_stride = patch_size, patch_stride
@@ -92,6 +108,7 @@ class GRUDecoder(nn.Module):
             elif "weight_ih" in name:
                 nn.init.xavier_uniform_(p)
         self.out = nn.Linear(hidden * (2 if bidirectional else 1), N_CLASSES)
+        init_blank_bias(self.out, blank_bias)
         self.causal = not bidirectional
 
     def features(self, x: torch.Tensor, day: torch.Tensor) -> torch.Tensor:
@@ -189,6 +206,7 @@ class ConformerDecoder(nn.Module):
         inter_ctc_layers: tuple[int, ...] = (3,),
         self_condition: bool = True,
         smooth_std: float = 2.0,
+        blank_bias: float | None = None,
     ):
         super().__init__()
         self.patch_size, self.patch_stride = patch_size, patch_stride
@@ -206,6 +224,7 @@ class ConformerDecoder(nn.Module):
             ConformerBlock(d_model, heads, ff_mult, conv_kernel, dropout, causal) for _ in range(layers)
         )
         self.out = nn.Linear(d_model, N_CLASSES)
+        init_blank_bias(self.out, blank_bias)
         self.inter = set(inter_ctc_layers)
         self.self_condition = self_condition
         if self_condition:
