@@ -21,6 +21,7 @@ ENCODER_LABELS = {
     "learned_threshold_aware": "Threshold-aware (+ failure aug.)",
     "learned_threshold_aware_noaug": "Threshold-aware (no aug.)",
     "learned_threshold_aware_noisy_thresholds": "Threshold-aware, 20% threshold error",
+    "learned_threshold_aware_noaug_noisy_thresholds": "Threshold-aware (no aug.), 20% threshold error",
     "learned_dropout_aug": "Learned + failure aug.",
 }
 
