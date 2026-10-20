@@ -37,6 +37,16 @@ We use no absolute positional encoding: causal masking and the convolutions carr
 After block 2 we compute an \emph{intermediate CTC} loss with the shared output head \citep{lee2021intermediate}. Its posteriors are projected back into the residual stream, $\mathbf{h}\leftarrow\mathbf{h}+\mathbf{W}_c\,\mathrm{softmax}(\cdot)$, which is \emph{self-conditioned CTC} \citep{nozaki2021selfcond}. The total loss is $0.7\,\mathcal{L}_{\text{CTC}}+0.3\,\mathcal{L}_{\text{CTC}}^{\text{inter}}$.
 A unit test checks causality: perturbing inputs after time $t$ leaves all outputs whose receptive field ends before $t$ unchanged, apart from the 60\,ms half-width of the smoothing kernel.
 
+\subsection{Stabilised CTC training}
+\label{sec:stable}
+In the previous round of this study, one of two GRU seeds stalled in both GRU configurations and the Conformer spent about 150 steps emitting only blanks. Per-step traces (loss, pre-clip gradient norm and the fraction of frames whose arg\,max is blank; \S\ref{sec:stability}) showed that the stalled seed did \emph{not} suffer exploding gradients: after step 20 its gradient norm stayed near 1, so the clipping threshold of 10 was never reached. Instead, its first $\sim$20 steps were spent learning to emit blanks from a uniform initial posterior (initial loss $\approx$16, gradient norms up to 13 during warm-up), after which it sat on the ``blank plus frequent phonemes'' plateau that CTC models are known to pass through \citep{zeyer2021peaky}. We changed five things, all standard:
+(i)~\textbf{blank-logit initialisation}: the read-out bias of the blank starts at $b{=}4$, so $p(\varnothing)=e^{b}/(e^{b}+40)=0.58$, close to the frame-level blank rate of a trained model, and the first updates go to the label logits;
+(ii)~\textbf{input re-standardisation}: averaging three z-scored 20\,ms bins shrinks the feature s.d.\ to 0.63, so the published white-noise augmentation ($\sigma{=}1$, set for unit-variance inputs) had a 1.6$\times$ lower signal-to-noise ratio than intended; we rescale the binned features by one global constant (1/s.d.\ of the training features);
+(iii)~\textbf{a short-utterance curriculum} for the first 100 steps (the shorter half of the training sentences), in the spirit of SortaGrad \citep{amodei2016deepspeech2};
+(iv)~\textbf{a longer linear warm-up} (100 steps instead of 50) before the cosine decay \citep{loshchilov2017sgdr}; and
+(v)~\textbf{gradient-norm clipping at 1} instead of 10 \citep{pascanu2013difficulty}, so that the rare large steps are bounded.
+The Conformer keeps its intermediate, self-conditioned CTC loss, which also acts as an auxiliary signal for the lower blocks.
+
 \subsection{Ensembling}
 Following the Brain-to-Text~'24 lessons, we ensemble models of the same architecture trained with different seeds by averaging their per-frame posteriors, $\bar p(k\mid t)=\tfrac1M\sum_m p_{\theta_m}(k\mid t)$, and then decode $\bar p$.
 
@@ -57,4 +67,10 @@ to the hypothesis score. A hypothesis that ends inside a word is completed or dr
 s=\log p_{\text{CTC}}+\alpha\log P_{\text{KN}}+\beta|w|+\gamma\log P_{\text{GPT-2}},
 \end{equation}
 where GPT-2 small (124M parameters; \citealp{radford2019gpt2}) stands in for the 6.7B-parameter OPT used clinically.
-The weights $\alpha,\beta$ are chosen by coordinate search on 100 dev sentences, and $\gamma$ is then chosen on the same sentences. The test set is never used for any choice.
+\textbf{Tuning on dev only.} All decoder settings are chosen on the 215 dev sentences (held-out trials of the training sessions, disjoint from the 426 test sentences), separately for each system, and the test set is then decoded once. The lexicon-only word bonus is searched first; $(\alpha,\beta)$ by two rounds of coordinate descent; then the beam width (8--64, ceiling 128); finally $\gamma$ jointly with a re-tuned word bonus on the dev 10-best lists. Every one-dimensional search starts from a grid and, whenever the optimum falls on an edge, extends the grid past that edge (multiplicatively for $\alpha$, $\gamma$ and the beam, additively for the bonuses) until the optimum is interior or a hard bound is reached ($\gamma\ge0$, beam $\le128$).
+
+\subsection{Unsupervised adaptation to a new day}
+\label{sec:tta}
+For a new session we change only that day's input layer $(\mathbf{W}_d,\mathbf{b}_d)$, initialised from the most recent training day's layer, and use only \emph{unlabelled} neural data from the new day (its \texttt{train} split; never the test sentences).
+\textbf{Feature-statistics matching} maps the new day's features onto the statistics of the most recent training day by an affine map $\mathbf{x}\mapsto\mathbf{x}\mathbf{A}+\mathbf{c}$ and folds it into the copied layer ($\mathbf{W}_d\leftarrow\mathbf{A}\mathbf{W}_{d-1}$, $\mathbf{b}_d\leftarrow\mathbf{c}\mathbf{W}_{d-1}+\mathbf{b}_{d-1}$). We use either per-feature mean/s.d.\ matching or CORAL \citep{sun2016coral}, $\mathbf{A}=\mathbf{C}_{\text{new}}^{-1/2}\mathbf{C}_{\text{ref}}^{1/2}$, with 10\% shrinkage of each covariance toward its diagonal.
+\textbf{Self-training} \citep{kahn2020selftraining}, close in spirit to the LM-corrected self-recalibration of \citet{fan2023plug}: the unlabelled sentences are decoded with the lexicon + trigram beam search, the decoded words are turned back into phoneme targets with the pronunciation lexicon, and the half of the sentences whose greedy phoneme string agrees least with that pseudo-label (1\,$-$\,PER between the two) is discarded. The day layer is then fine-tuned with CTC on the rest for 40 steps, exactly as in supervised calibration, and the procedure is repeated for two rounds. We also run self-training starting from the CORAL-initialised layer.

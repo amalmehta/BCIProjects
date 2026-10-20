@@ -74,19 +74,20 @@ def ablation_table(m) -> str:
         return [s.get(key) for s in runs.get(run, {}).values()]
 
     lines = [r"\begin{tabular}{lcc}", r"\toprule", r"Configuration & PER & WER (3-gram) \\", r"\midrule",
-             r"\multicolumn{3}{l}{\emph{Augmentation (GRU, per seed: s0 / s1)}} \\"]
-    for run, name in (("gru_baseline", "published (noise, offset, cut)"), ("gru_aug", "+ time mask + electrode dropout")):
+             r"\multicolumn{3}{l}{\emph{Per seed (s0 / s1 / s2)}} \\"]
+    for run, name in (("gru_baseline", "GRU baseline"), ("conformer_aug", "Conformer")):
         per, w = seeds(run, "per_greedy"), seeds(run, "wer_ngram")
-        lines.append(f"\\quad {name} & {' / '.join(pct(v) for v in per)} & {' / '.join(pct(v) for v in w)} \\\\")
-    lines.append(r"\multicolumn{3}{l}{\emph{Ensembling (posterior average of s0+s1)}} \\")
-    for run, name in (("gru_baseline", "GRU baseline"), ("gru_aug", "GRU + new aug.")):
+        if per:
+            lines.append(f"\\quad {name} & {' / '.join(pct(v) for v in per)} & {' / '.join(pct(v) for v in w)} \\\\")
+    lines.append(r"\multicolumn{3}{l}{\emph{Ensembling (posterior average of all seeds)}} \\")
+    for run, name in (("gru_baseline", "GRU baseline"), ("conformer_aug", "Conformer")):
         e = ens.get(f"{run}_ens")
         if e:
             lines.append(f"\\quad {name} & {pct(e['per_greedy'])} & {pct(e['wer_ngram'])} \\\\")
     swap = (m.get("robustness") or {}).get("day_swap", {})
     if swap:
         lines.append(r"\multicolumn{3}{l}{\emph{Day-specific input layer at test time (PER only)}} \\")
-        names = {"gru_aug_s0": "GRU + new aug.", "conformer_aug_s0": "Conformer"}
+        names = {"gru_aug_s0": "GRU + new aug.", "gru_baseline_s0": "GRU baseline", "conformer_aug_s0": "Conformer"}
         conds = list(next(iter(swap.values())).keys())
         for c in conds:
             vals = " / ".join(pct(swap[r][c]) for r in swap)
@@ -100,8 +101,8 @@ def lm_table(m) -> str:
     """WER of each decoding stage for each system, plus the 10-best oracle."""
     lines = [r"\begin{tabular}{lccccc}", r"\toprule",
              r"System & greedy PER & no LM & 3-gram & +GPT-2 & oracle@10 \\", r"\midrule"]
-    rows = [("conformer_aug_s0", "Conformer (s0)"), ("gru_baseline_s0", "GRU baseline (s0)"),
-            ("gru_baseline_ens", "GRU baseline ens."), ("gru_aug_ens", "GRU + new aug. ens.")]
+    rows = [(f"{r}_s{k}", f"{n} (s{k})") for r, n in (("conformer_aug", "Conformer"), ("gru_baseline", "GRU baseline")) for k in range(3)]
+    rows += [("conformer_aug_ens", "Conformer ens."), ("gru_baseline_ens", "GRU baseline ens.")]
     allm = {**{f"{r}_s{k}": v for r, ss in m["runs"].items() for k, v in ss.items()}, **m["ensembles"]}
     for key, name in rows:
         x = allm.get(key)
@@ -109,6 +110,49 @@ def lm_table(m) -> str:
             continue
         cells = [pct(x[k]) if x.get(k) is not None else "--" for k in ("per_greedy", "wer_lexicon", "wer_ngram", "wer_llm", "wer_nbest_oracle")]
         lines.append(f"{name} & " + " & ".join(cells) + r" \\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    return "\n".join(lines)
+
+
+def tuning_table(m) -> str:
+    """Decoder settings chosen on dev for every system; * = optimum on a hard bound of the grid."""
+    t = m.get("decoder_tuning", {})
+    lines = [r"\begin{tabular}{lrrrrrr}", r"\toprule",
+             r"System & beam & $\alpha$ & $\beta$ & $\beta_{\text{lex}}$ & $\gamma$ & dev WER \\", r"\midrule"]
+    order = [f"{r}_s{k}" for r in ("conformer_aug", "gru_baseline") for k in range(3)] + ["conformer_aug_ens", "gru_baseline_ens"]
+    lab = {"conformer_aug": "Conformer", "gru_baseline": "GRU"}
+    for key in order:
+        x = t.get(key)
+        if not x:
+            continue
+        run, sd = key.rsplit("_", 1)
+        name = f"{lab[run]} {'ens.' if sd == 'ens' else sd}"
+        inter = x.get("interior") or {}
+
+        def f(k, fmt):
+            v = x.get(k)
+            if v is None:
+                return "--"
+            return fmt.format(v) + ("" if inter.get(k, True) else "$^*$")
+        lines.append(f"{name} & {f('beam', '{:d}')} & {f('alpha', '{:g}')} & {f('beta', '{:g}')} & {f('beta_lexicon', '{:g}')} & "
+                     f"{f('gamma', '{:g}')} & {pct(x['dev_wer_llm']) if x.get('dev_wer_llm') is not None else '--'} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    return "\n".join(lines)
+
+
+def calibration_table(m) -> str:
+    cal = m.get("calibration")
+    if not cal:
+        return ""
+    names = [("reuse", 0, "reuse last training day's layer"), ("tta_moments", 0, "unsup.: mean/std matching"),
+             ("tta_coral", 0, "unsup.: CORAL"), ("tta_self_train", 0, "unsup.: self-training"),
+             ("tta_coral+self_train", 0, "unsup.: CORAL + self-training")]
+    names += [("day_layer", n, f"supervised day layer, {n} sent.") for n in sorted({r["n_sentences"] for r in cal["rows"] if r["mode"] == "day_layer"})]
+    lines = [r"\begin{tabular}{lcc}", r"\toprule", r"New-day method & PER & WER \\", r"\midrule"]
+    for mode, n, name in names:
+        rs = [r for r in cal["rows"] if r["mode"] == mode and r["n_sentences"] == n]
+        if rs:
+            lines.append(f"{name} & {pct(np.mean([r['per'] for r in rs]))} & {pct(np.mean([r['wer'] for r in rs]))} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}"]
     return "\n".join(lines)
 
@@ -175,6 +219,68 @@ def macros(m, cfg) -> str:
         if steps:
             put(f"{tag}Minutes", f"{np.mean(mins):.0f}")
             put(f"{tag}Params", f"{list(seeds.values())[0]['n_params'] / 1e6:.1f}")
+        for k, kt in (("per_greedy", "PER"), ("wer_ngram", "WERng"), ("wer_llm", "WERllm"), ("wer_lexicon", "WERlex")):
+            vals = [s.get(k) for s in seeds.values() if s.get(k) is not None]
+            if len(vals) > 1:
+                put(f"{tag}{kt}sd", f"{100 * np.std(vals, ddof=1):.1f}")
+                put(f"{tag}{kt}best", pct(min(vals)))
+                put(f"{tag}{kt}worst", pct(max(vals)))
+        for k, kt in (("per_greedy_ci95", "PERci"), ("wer_ngram_ci95", "NGci"), ("wer_llm_ci95", "LLMci")):
+            if ens.get(k):
+                put(f"{tag}Ens{kt}lo", pct(ens[k][0]))
+                put(f"{tag}Ens{kt}hi", pct(ens[k][1]))
+        if ens.get("beam") is not None:
+            put(f"{tag}EnsBeam", str(ens["beam"]))
+            put(f"{tag}EnsGamma", f"{ens['gamma']:g}" if ens.get("gamma") is not None else "--")
+    words_n = {0: "Zero", 1: "One", 2: "Two"}
+    for name, tag in (("conformer_vs_gru_seedavg", "CmpSeed"), ("conformer_vs_gru_ensemble", "CmpEns"),
+                      ("conformer_ens_vs_best_member", "CmpConfEnsMember")):
+        c = m.get("comparisons", {}).get(name)
+        if not c:
+            continue
+        for k, kt in (("per_greedy", "PER"), ("wer_ngram", "NG"), ("wer_llm", "LLM")):
+            if k in c:
+                put(f"{tag}{kt}diff", f"{100 * c[k]['diff']:.1f}")
+                put(f"{tag}{kt}lo", f"{100 * c[k]['ci95'][0]:.1f}")
+                put(f"{tag}{kt}hi", f"{100 * c[k]['ci95'][1]:.1f}")
+                p = c[k]["p_two_sided"]
+                put(f"{tag}{kt}p", "<10^{-4}" if p < 1e-4 else f"{p:.3f}")
+    ev = m.get("ensemble_vs_members", {})
+    for run, tag in (("gru_baseline_ens", "Base"), ("conformer_aug_ens", "Conf")):
+        for k, kt in (("per_greedy", "PER"), ("wer_llm", "WERllm")):
+            if ev.get(run, {}).get(k):
+                put(f"{tag}BestMember{kt}", pct(ev[run][k]["best_member"]))
+    st = m.get("stability", {})
+    for d, tag in (("runs", ""), ("probes", "Probe")):
+        for name, r in st.get(d, {}).items():
+            run, sd = name.rsplit("_s", 1)
+            t = {"gru_baseline": "Base", "conformer_aug": "Conf", "gru_old": "Old", "gru_fixed": "Fixed"}.get(run)
+            if not t:
+                continue
+            key = f"Stab{tag}{t}S{words_n.get(int(sd), sd)}"
+            put(key + "Plateau", str(r["plateau_steps"]))
+            put(key + "Escape", str(r["escape_step"]) if r["escape_step"] is not None else "never")
+            put(key + "GradMed", f"{r['grad_norm']['median']:.2f}")
+            put(key + "GradMax", f"{r['grad_norm']['max']:.1f}")
+            if r.get("grad_norm", {}).get("frac_clipped") is not None:
+                put(key + "Clipped", f"{100 * r['grad_norm']['frac_clipped']:.0f}")
+            put(key + "InitLoss", f"{r['initial_loss']:.1f}")
+            curve = dict((s_, v) for s_, v in r["dev_per_curve"])
+            for s_ in (50, 100, 150):
+                if s_ in curve:
+                    put(key + {50: "DevFifty", 100: "DevHundred", 150: "DevOneFifty"}[s_], pct(curve[s_]))
+    pr = m.get("previous_round", {})
+    for run, tag in (("gru_baseline", "Base"), ("gru_aug", "Aug"), ("conformer_aug", "Conf")):
+        for sd, v in pr.get("runs", {}).get(run, {}).items():
+            for k, kt in (("per_greedy", "PER"), ("wer_ngram", "WERng"), ("wer_llm", "WERllm"), ("wer_lexicon", "WERlex")):
+                if v.get(k) is not None:
+                    put(f"Prev{tag}S{words_n[int(sd)]}{kt}", pct(v[k]))
+            if v.get("best_dev_per") is not None:
+                put(f"Prev{tag}S{words_n[int(sd)]}DevPER", pct(v["best_dev_per"]))
+        e = pr.get("ensembles", {}).get(f"{run}_ens")
+        if e:
+            put(f"Prev{tag}EnsPER", pct(e["per_greedy"]))
+            put(f"Prev{tag}EnsWERng", pct(e["wer_ngram"]))
     byc = m["runs"].get("conformer_aug", {}).get("0", {}).get("wer_ngram_by_corpus", {})
     for c, v in byc.items():
         put("Corpus" + "".join(ch for ch in c.title() if ch.isalpha()), pct(v["wer"]))
@@ -186,6 +292,12 @@ def macros(m, cfg) -> str:
             return pct(np.mean(v)) if v else "--"
         put("CalReusePER", calv("reuse", 0, "per"))
         put("CalReuseWER", calv("reuse", 0, "wer"))
+        for mode, t in (("tta_moments", "Moments"), ("tta_coral", "Coral"), ("tta_self_train", "Self"),
+                        ("tta_coral+self_train", "CoralSelf")):
+            put(f"Cal{t}PER", calv(mode, 0, "per"))
+            put(f"Cal{t}WER", calv(mode, 0, "wer"))
+        put("CalBase", {"conformer_aug": "Conformer", "gru_baseline": "GRU baseline"}.get(cal["base_run"].rsplit("_s", 1)[0], cal["base_run"]))
+        put("CalPool", str(cal.get("pool_size")))
         for n in cfg["calibration"]["n_sentences"]:
             for mode, t in (("day_layer", "Day"), ("full", "Full")):
                 w = {"10": "Ten", "25": "TwentyFive", "50": "Fifty", "100": "Hundred", "200": "TwoHundred"}.get(str(n), str(n))
@@ -202,7 +314,7 @@ def macros(m, cfg) -> str:
     if rob and rob.get("day_swap"):
         keys = {"own day": "Own", "previous session's layer": "Prev", "most distant session's layer": "Far",
                 "identity (no day layer)": "Ident"}
-        for run, tag in (("gru_aug_s0", "Aug"), ("conformer_aug_s0", "Conf")):
+        for run, tag in (("gru_aug_s0", "Aug"), ("gru_baseline_s0", "Base"), ("conformer_aug_s0", "Conf")):
             for k, v in rob["day_swap"].get(run, {}).items():
                 put(f"Swap{tag}{keys[k]}", pct(v))
     lat = m.get("latency")
@@ -211,7 +323,7 @@ def macros(m, cfg) -> str:
         if lat.get("gpt2_rescore_ms_per_sentence"):
             put("GPTMs", f"{lat['gpt2_rescore_ms_per_sentence']:.0f}")
         for run, r in lat["models"].items():
-            tag = {"gru_aug": "Aug", "gru_bi_aug": "Bi", "conformer_aug": "Conf"}.get(run.rsplit("_s", 1)[0])
+            tag = {"gru_aug": "Aug", "gru_baseline": "Base", "gru_bi_aug": "Bi", "conformer_aug": "Conf"}.get(run.rsplit("_s", 1)[0])
             if tag:
                 put(f"Lat{tag}Full", f"{r['full_forward_ms']:.0f}")
                 if r.get("per_frame_ms") is not None:
@@ -234,6 +346,8 @@ def main() -> None:
     (paper / "tab_ablation.tex").write_text(ablation_table(m))
     (paper / "tab_latency.tex").write_text(latency_table(m))
     (paper / "tab_lm.tex").write_text(lm_table(m))
+    (paper / "tab_tuning.tex").write_text(tuning_table(m))
+    (paper / "tab_calib.tex").write_text(calibration_table(m))
     (paper / "numbers.tex").write_text(macros(m, cfg))
     figs = paper / "figures"
     figs.mkdir(exist_ok=True)

@@ -1,0 +1,15 @@
+# Leave-one-out ablation of the stabilised CTC recipe (GRU baseline, seed 0 and the previously
+# stalling seed 1, full 480 steps). Reported as greedy PER only (results/ablation/runs/*/summary.json).
+base: cpu.yaml
+results_dir: results/ablation
+runs:
+  gru_no_rescale:         # stabilised recipe without input re-standardisation
+    model: gru
+    data: {input_scale: 1.0}
+  gru_only_rescale:       # previous recipe + input re-standardisation only
+    model: gru
+    train: {warmup_steps: 50, grad_clip: 10.0, curriculum_steps: 0}
+    model_overrides: {blank_bias: null}
+schedule:
+  - [gru_no_rescale, 1]
+  - [gru_only_rescale, 1]
