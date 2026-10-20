@@ -112,7 +112,7 @@
     <ul>
       <li>Simulation only. Real phosphenes vary in shape and colour, and change in ways this model doesn't capture.</li>
       <li>CPU scale: the percept classifiers train on 6k images for 4 epochs, and ablations use one seed. <code>run_gpu.sh</code> runs the full scale.</li>
-      <li>At 50% unannounced electrode failure on natural images, the learned encoder falls slightly below intensity sampling (SSIM 0.235 vs 0.251).</li>
+      <li>At 50% unannounced electrode failure on natural images, recognition accuracy with the learned encoder falls slightly below intensity sampling (0.235 vs 0.251), although its SSIM stays higher (0.081 vs 0.056).</li>
       <li>Without the percept loss, a single Utah array, or an unconstrained run started at 100 µA, training collapsed to no stimulation. The paper reports these as findings.</li>
     </ul>
   </div>
