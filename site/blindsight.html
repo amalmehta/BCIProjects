@@ -193,8 +193,15 @@ pad.addEventListener("pointerup", () => { drawing = false; });
 async function getSession(name) {
   if (!sessions[name]) {
     if (!window.ort) throw new Error("onnxruntime-web did not load (offline?)");
-    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/";
-    sessions[name] = ort.InferenceSession.create(D + (name === "letters" ? "encoder_letters.onnx" : "encoder.onnx"));
+    // A host can serve the wasm runtime itself by setting window.ORT_WASM_PATH (e.g. where CDN fetches are blocked).
+    ort.env.wasm.wasmPaths = window.ORT_WASM_PATH || "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/";
+    ort.env.wasm.numThreads = 1;
+    const file = D + (name === "letters" ? "encoder_letters.onnx" : "encoder.onnx");
+    // Hosts that can't serve .onnx set window.ONNX_AS_JSON and ship the model as base64 in <file>.json.
+    const src = window.ONNX_AS_JSON
+      ? loadJSON(file + ".json").then(j => Uint8Array.from(atob(j.base64), c => c.charCodeAt(0)))
+      : Promise.resolve(file);
+    sessions[name] = src.then(m => ort.InferenceSession.create(m));
   }
   return sessions[name];
 }

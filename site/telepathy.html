@@ -115,7 +115,12 @@ const D = "data/telepathy/";
 const [metrics, traj, wg, recal] = await Promise.all(["metrics", "trajectories", "webgrid", "recalibration"].map(n => loadJSON(D + n + ".json")));
 const dec = metrics.decoders;
 const NAMES = { oracle: "Perfect decoder", wiener: "Wiener", kalman: "Kalman", fa_stabiliser: "FA stabiliser", gru: "GRU", sld: "SLD (proposed)", sld_proposed: "SLD (proposed)" };
-const COLORS = { oracle: "#9aa3b2", wiener: "#f5c76b", kalman: "#ff7a7a", gru: "#5fd39a", sld: "#7cc4ff" };
+const COLORS = {}, RC = {};
+function themeColors() {
+  Object.assign(COLORS, { oracle: css("--muted"), wiener: css("--warn"), kalman: css("--bad"), gru: css("--good"), sld: css("--telepathy") });
+  Object.assign(RC, { wiener_prior: css("--warn"), wiener_scratch: css("--faint"), gru_finetune: css("--good"), sld_fewshot: css("--telepathy"), sld_align_fewshot: css("--blindsight") });
+}
+themeColors();
 
 // ---- stats ----------------------------------------------------------------
 const sld = dec.sld_proposed;
@@ -244,7 +249,7 @@ trSel.value = "3"; replay();
 
 // ---- recalibration chart ---------------------------------------------------
 const RN = { wiener_prior: "Wiener, re-fit with prior", wiener_scratch: "Wiener from scratch", gru_finetune: "GRU, full fine-tune", sld_fewshot: "SLD, adapter only", sld_align_fewshot: "SLD, align then adapter" };
-const RC = { wiener_prior: "#f5c76b", wiener_scratch: "#c79a3f", gru_finetune: "#5fd39a", sld_fewshot: "#7cc4ff", sld_align_fewshot: "#b59cff" };
+
 function drawRecal() {
   const svg = document.getElementById("recal"), W = 720, H = 320, L = 50, B = 40, T = 14, Rr = 16;
   const xs = [0, 1, 5, 20, 50], xp = x => L + xs.indexOf(x) / (xs.length - 1) * (W - L - Rr);
@@ -263,7 +268,7 @@ function drawRecal() {
   document.getElementById("recalLegend").innerHTML = Object.keys(recal.methods).map(k => `<span><i style="background:${RC[k]}"></i>${RN[k]}</span>`).join("");
 }
 drawRecal();
-window.addEventListener("themechange", () => { drawRecal(); replay(); });
+window.addEventListener("themechange", () => { themeColors(); drawRecal(); replay(); });
 </script>
 </body>
 </html>

@@ -27,7 +27,9 @@ export function renderNav(active) {
   </div>`;
   document.body.prepend(nav);
   nav.querySelector(".theme-btn").addEventListener("click", () => {
-    const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+    const cur = document.documentElement.dataset.theme ||
+      (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    const next = cur === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem("theme", next); } catch {}
     window.dispatchEvent(new Event("themechange"));
