@@ -11,10 +11,10 @@ seeds: [0, 1, 2, 3, 4]
 wiener: {n_lags: 10, alphas: [10.0, 30.0, 100.0, 1000.0, 10000.0]}
 kalman: {smooth_bins: [3, 5, 8], q_scales: [0.3, 1.0, 3.0]}   # velocity-only filter (kept as kalman_v1)
 kalman_pv:                              # strong Kalman baseline (stage kalman); order 0 = velocity-only state
-  smooth_bins: [3, 5, 8]                # causal boxcar = bin width 60 / 100 / 160 ms, updated every 20 ms
-  obs_delay: [0, 1, 2]                  # extra neural lead (bins) on top of the global lag
+  smooth_bins: [5, 8, 12, 16]           # causal boxcar = bin width 100-320 ms, updated every 20 ms
+  obs_delay: [0, 1]                     # extra neural lead (bins) on top of the global lag
   order: [0, 1, 2]                      # 0: v, 1: p + v, 2: p + v + a
-  q_scales: [0.5, 1.0, 2.0]
+  q_scales: [2.0, 4.0, 8.0]             # (a first grid {0.5,1,2} x {3,5,8} peaked on its edge)
   sqrt: [false, true]
 remap: {margin: 0.1, corr_weight: 1.0, synth_day_stride: 1, repeats: 5, shuffle_fracs: [0.1, 0.25, 0.5, 1.0]}
 fa: {q: 10, smooth_bins: 5, n_lags: 5, stable_frac: 0.6}

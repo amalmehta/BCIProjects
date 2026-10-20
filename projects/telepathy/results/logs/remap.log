@@ -1,0 +1,29 @@
+[15:01:00] remap indy_20161005_06 (day 20): identity score 1.070 vs identity 1.070 (2s)
+[15:01:02] remap indy_20161006_02 (day 21): identity score 1.480 vs identity 1.480 (2s)
+[15:01:04] remap indy_20161007_02 (day 22): identity score 1.397 vs identity 1.397 (2s)
+[15:01:06] remap indy_20161011_03 (day 26): identity score 1.635 vs identity 1.635 (2s)
+[15:03:29] remap indy_20161013_03 (day 28): b2_rb1_ri0_s0 score 0.787 vs identity 0.181; after: {'wiener_rc': 0.448, 'kalman_rc': 0.409, 'gru_rc': 0.651, 'sld_rc': 0.724, 'sld_aligned': 0.707} (143s)
+[15:03:31] remap indy_20161014_04 (day 29): identity score 1.688 vs identity 1.688 (2s)
+[15:03:33] remap indy_20161017_02 (day 32): identity score 1.030 vs identity 1.030 (2s)
+[15:03:34] remap indy_20161024_03 (day 39): identity score 0.923 vs identity 0.923 (2s)
+[15:03:36] remap indy_20161025_04 (day 40): identity score 1.261 vs identity 1.261 (2s)
+[15:03:37] remap indy_20161026_03 (day 41): identity score 1.134 vs identity 1.134 (2s)
+[15:03:39] remap indy_20161027_03 (day 42): identity score 0.957 vs identity 0.957 (2s)
+[15:03:41] remap indy_20161206_02 (day 82): identity score 0.464 vs identity 0.464 (2s)
+[15:03:43] remap indy_20161207_02 (day 83): identity score 1.016 vs identity 1.016 (2s)
+[15:03:45] remap indy_20161212_02 (day 88): identity score 1.228 vs identity 1.228 (2s)
+[15:03:46] remap indy_20161220_02 (day 96): identity score 0.699 vs identity 0.699 (2s)
+[15:03:48] remap indy_20170123_02 (day 130): identity score 1.289 vs identity 1.289 (2s)
+[15:05:29] remap indy_20170124_01 (day 131): b2_rb1_ri0_s0 score 0.837 vs identity 0.002; after: {'wiener_rc': 0.406, 'kalman_rc': 0.337, 'gru_rc': 0.652, 'sld_rc': 0.746, 'sld_aligned': 0.702} (101s)
+[15:05:31] remap indy_20170127_03 (day 134): identity score 0.919 vs identity 0.919 (2s)
+[15:05:33] remap indy_20170131_02 (day 138): identity score 0.809 vs identity 0.809 (2s)
+[15:05:38] synthetic structured indy_20161005_06: recovery 1.00
+[15:05:45] synthetic structured indy_20161011_03: recovery 1.00
+[15:05:50] synthetic structured indy_20161024_03: recovery 1.00
+[15:05:56] synthetic structured indy_20161027_03: recovery 1.00
+[15:06:02] synthetic structured indy_20161212_02: recovery 1.00
+[15:06:12] synthetic structured indy_20170127_03: recovery 1.00
+[15:07:22] synthetic random shuffle 0.1: {'wiener_rc_shuffled': 0.375, 'sld_rc_shuffled': 0.676, 'structured_recovery_moved': 0.0, 'structured_recovery_all': 0.896, 'structured_wiener_rc': 0.375, 'structured_sld_rc': 0.676, 'hungarian_recovery_moved': 0.117, 'hungarian_recovery_all': 0.738, 'hungarian_wiener_rc': 0.332, 'hungarian_sld_rc': 0.654}
+[15:08:36] synthetic random shuffle 0.25: {'wiener_rc_shuffled': 0.292, 'sld_rc_shuffled': 0.603, 'structured_recovery_moved': 0.0, 'structured_recovery_all': 0.688, 'structured_wiener_rc': 0.252, 'structured_sld_rc': 0.55, 'hungarian_recovery_moved': 0.101, 'hungarian_recovery_all': 0.594, 'hungarian_wiener_rc': 0.246, 'hungarian_sld_rc': 0.581}
+[15:09:51] synthetic random shuffle 0.5: {'wiener_rc_shuffled': 0.191, 'sld_rc_shuffled': 0.445, 'structured_recovery_moved': 0.003, 'structured_recovery_all': 0.377, 'structured_wiener_rc': 0.118, 'structured_sld_rc': 0.331, 'hungarian_recovery_moved': 0.073, 'hungarian_recovery_all': 0.357, 'hungarian_wiener_rc': 0.134, 'hungarian_sld_rc': 0.393}
+[15:11:02] synthetic random shuffle 1.0: {'wiener_rc_shuffled': -0.263, 'sld_rc_shuffled': -0.109, 'structured_recovery_moved': 0.014, 'structured_recovery_all': 0.014, 'structured_wiener_rc': -0.285, 'structured_sld_rc': -0.144, 'hungarian_recovery_moved': 0.049, 'hungarian_recovery_all': 0.049, 'hungarian_wiener_rc': -0.263, 'hungarian_sld_rc': -0.083}

@@ -151,3 +151,78 @@
 [22:09:11] stage export finished in 1151s
 [22:26:32] few-shot indy_20161025_04 N=50: wiener_scratch=0.417, wiener_prior=0.527, gru_finetune=0.779, sld_fewshot=0.763, sld_align_fewshot=0.779
 [22:33:26] stage export finished in 275s
+[14:47:20] stage kalman finished in 1727s
+[14:56:46] stage kalman finished in 443s
+[15:11:05] stage remap finished in 613s
+[15:13:10] sim encoder on indy_20160930_02: {'noise_scale': 0.25, 'real_r2': 0.48662103256778483, 'sim_r2_by_scale': {0.0: 0.4399657494860215, 0.25: 0.450720998473982, 0.5: 0.43249242848953073, 0.75: 0.4328888320101353, 1.0: 0.37632657549609594}}
+[15:13:13] fidelity: {'wiener': {'real': 0.48662103256778483, 'sim': 0.4381527757176778}, 'kalman': {'real': 0.40357817529154905, 'sim': 0.34555019637644896}, 'kalman_v1': {'real': 0.17621172976774113, 'sim': 0.25925792534364683}, 'gru': {'real': 0.7717734995039962, 'sim': 0.5971014240969872}, 'sld': {'real': 0.7463716232880302, 'sim': 0.717162094408656}}
+[15:13:13] tuned oracle: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.1}
+[15:13:25] tuned wiener: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 2.0440516245245464}
+[15:13:34] tuned kalman: {'gain': 0.75, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 0.7734249390092878}
+[15:13:46] tuned kalman_v1: {'gain': 0.75, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 0.7734249390092878}
+[15:13:59] tuned gru: {'gain': 1.5, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 2.2650301785272}
+[15:14:15] tuned sld: {'gain': 1.5, 'smooth': 0.6, 'hold': 0.1, 'tune_bps': 1.3811159625165854}
+[15:14:28] WebGrid 10x10 oracle: 4.77 [4.68, 4.86] bps (n=40)
+[15:14:47] WebGrid 10x10 wiener: 1.23 [1.10, 1.35] bps (n=40)
+[15:15:04] WebGrid 10x10 kalman: 0.41 [0.32, 0.50] bps (n=40)
+[15:15:20] WebGrid 10x10 kalman_v1: 0.56 [0.46, 0.68] bps (n=40)
+[15:15:38] WebGrid 10x10 gru: 2.47 [2.37, 2.58] bps (n=40)
+[15:16:00] WebGrid 10x10 sld: 1.25 [1.12, 1.39] bps (n=40)
+[15:16:00] paired wiener vs kalman: diff +0.82 [+0.67, +0.96] p_holm=3.95e-07
+[15:16:00] paired wiener vs kalman_v1: diff +0.66 [+0.54, +0.78] p_holm=4.35e-07
+[15:16:00] paired wiener vs gru: diff -1.25 [-1.41, -1.08] p_holm=3.52e-07
+[15:16:00] paired wiener vs sld: diff -0.03 [-0.20, +0.15] p_holm=0.814
+[15:16:00] paired kalman vs kalman_v1: diff -0.16 [-0.27, -0.04] p_holm=0.00833
+[15:16:00] paired kalman vs gru: diff -2.07 [-2.19, -1.94] p_holm=3.52e-07
+[15:16:00] paired kalman vs sld: diff -0.85 [-1.02, -0.68] p_holm=5.15e-07
+[15:16:00] paired kalman_v1 vs gru: diff -1.91 [-2.06, -1.76] p_holm=3.52e-07
+[15:16:00] paired kalman_v1 vs sld: diff -0.69 [-0.86, -0.52] p_holm=2.46e-06
+[15:16:00] paired gru vs sld: diff +1.22 [+1.06, +1.38] p_holm=3.52e-07
+[15:16:34] grid 6: oracle=3.89, wiener=2.09, kalman=0.58, kalman_v1=1.27, gru=2.27, sld=1.56
+[15:17:02] grid 8: oracle=4.40, wiener=1.59, kalman=0.51, kalman_v1=0.78, gru=2.44, sld=1.45
+[15:22:15] stage kalman finished in 244s
+[15:23:11] sim encoder on indy_20160930_02: {'noise_scale': 0.25, 'real_r2': 0.48662103256778483, 'sim_r2_by_scale': {0.0: 0.4399657494860215, 0.25: 0.450720998473982, 0.5: 0.43249242848953073, 0.75: 0.4328888320101353, 1.0: 0.37632657549609594}}
+[15:23:15] fidelity: {'wiener': {'real': 0.48662103256778483, 'sim': 0.4381527757176778}, 'kalman': {'real': 0.40357817529154905, 'sim': 0.34555019637644896}, 'kalman_nofb': {'real': 0.40357817529154905, 'sim': 0.34555019637644896}, 'kalman_v1': {'real': 0.17621172976774113, 'sim': 0.25925792534364683}, 'gru': {'real': 0.7717734995039962, 'sim': 0.5971014240969872}, 'sld': {'real': 0.7463716232880302, 'sim': 0.717162094408656}}
+[15:23:15] tuned oracle: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.1}
+[15:23:24] tuned wiener: {'gain': 1.0, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 2.0440516245245464}
+[15:23:36] tuned kalman: {'gain': 0.75, 'smooth': 0.6, 'hold': 0.1, 'tune_bps': 0.5524463850066341}
+[15:23:47] tuned kalman_nofb: {'gain': 0.75, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 0.7734249390092878}
+[15:23:58] tuned kalman_v1: {'gain': 0.75, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 0.7734249390092878}
+[15:24:10] tuned gru: {'gain': 1.5, 'smooth': 0.0, 'hold': 0.1, 'tune_bps': 2.2650301785272}
+[15:24:24] tuned sld: {'gain': 1.5, 'smooth': 0.6, 'hold': 0.1, 'tune_bps': 1.3811159625165854}
+[15:24:39] WebGrid 10x10 oracle: 4.77 [4.68, 4.86] bps (n=40)
+[15:24:52] WebGrid 10x10 wiener: 1.23 [1.10, 1.35] bps (n=40)
+[15:25:05] WebGrid 10x10 kalman: 0.25 [0.15, 0.36] bps (n=40)
+[15:25:18] WebGrid 10x10 kalman_nofb: 0.41 [0.32, 0.50] bps (n=40)
+[15:25:31] WebGrid 10x10 kalman_v1: 0.56 [0.46, 0.68] bps (n=40)
+[15:25:51] WebGrid 10x10 gru: 2.47 [2.37, 2.58] bps (n=40)
+[15:26:10] WebGrid 10x10 sld: 1.25 [1.12, 1.39] bps (n=40)
+[15:26:11] paired wiener vs kalman: diff +0.98 [+0.84, +1.12] p_holm=5.2e-07
+[15:26:11] paired wiener vs kalman_nofb: diff +0.82 [+0.67, +0.96] p_holm=5.93e-07
+[15:26:11] paired wiener vs kalman_v1: diff +0.66 [+0.54, +0.78] p_holm=6.1e-07
+[15:26:11] paired wiener vs gru: diff -1.25 [-1.41, -1.08] p_holm=5.2e-07
+[15:26:11] paired wiener vs sld: diff -0.03 [-0.20, +0.15] p_holm=0.814
+[15:26:11] paired kalman vs kalman_nofb: diff -0.15 [-0.28, -0.02] p_holm=0.0125
+[15:26:11] paired kalman vs kalman_v1: diff -0.31 [-0.45, -0.18] p_holm=0.000458
+[15:26:11] paired kalman vs gru: diff -2.22 [-2.36, -2.08] p_holm=5.2e-07
+[15:26:11] paired kalman vs sld: diff -1.00 [-1.18, -0.83] p_holm=5.93e-07
+[15:26:11] paired kalman_nofb vs kalman_v1: diff -0.16 [-0.27, -0.04] p_holm=0.0125
+[15:26:11] paired kalman_nofb vs gru: diff -2.07 [-2.19, -1.94] p_holm=5.2e-07
+[15:26:11] paired kalman_nofb vs sld: diff -0.85 [-1.02, -0.68] p_holm=7.73e-07
+[15:26:11] paired kalman_v1 vs gru: diff -1.91 [-2.06, -1.76] p_holm=5.2e-07
+[15:26:11] paired kalman_v1 vs sld: diff -0.69 [-0.86, -0.52] p_holm=4.11e-06
+[15:26:11] paired gru vs sld: diff +1.22 [+1.06, +1.38] p_holm=5.2e-07
+[15:26:38] grid 6: oracle=3.89, wiener=2.09, kalman=0.73, kalman_nofb=0.58, kalman_v1=1.27, gru=2.27, sld=1.56
+[15:27:06] grid 8: oracle=4.40, wiener=1.59, kalman=0.48, kalman_nofb=0.51, kalman_v1=0.78, gru=2.44, sld=1.45
+[15:27:36] grid 10: oracle=4.71, wiener=1.10, kalman=0.22, kalman_nofb=0.28, kalman_v1=0.41, gru=2.23, sld=1.47
+[15:28:08] grid 15: oracle=5.15, wiener=0.48, kalman=0.09, kalman_nofb=0.16, kalman_v1=0.14, gru=1.86, sld=0.47
+[15:28:37] grid 20: oracle=5.49, wiener=0.20, kalman=0.09, kalman_nofb=0.07, kalman_v1=0.01, gru=1.30, sld=0.62
+[15:29:11] grid 35: oracle=6.10, wiener=0.02, kalman=0.00, kalman_nofb=0.00, kalman_v1=0.00, gru=0.34, sld=0.10
+[15:30:41] dwell selection: {'oracle': 4.28, 'wiener': 0.57, 'kalman': 0.0, 'kalman_nofb': 0.0, 'kalman_v1': 0.06, 'gru': 0.74, 'sld': 0.0}
+[15:31:05] ReFIT wiener: 1.23 -> 1.58 bps (p=0.000143)
+[15:31:30] ReFIT kalman: 0.25 -> 1.37 bps (p=4.56e-08)
+[15:33:16] cross-day sim indy_20161005_06: oracle=4.75, wiener_rc=1.06, kalman_rc=0.13, gru_fixed=0.62, gru_rc=1.61, sld_fixed=0.05, sld_rc=0.43, sld_aligned=1.50
+[15:35:19] cross-day sim indy_20161026_03: oracle=4.75, wiener_rc=0.92, kalman_rc=0.09, gru_fixed=0.02, gru_rc=1.52, sld_fixed=0.01, sld_rc=0.72, sld_aligned=1.45
+[15:37:04] cross-day sim indy_20161207_02: oracle=4.75, wiener_rc=0.96, kalman_rc=0.26, gru_fixed=0.12, gru_rc=1.89, sld_fixed=0.00, sld_rc=0.80, sld_aligned=1.98
+[15:38:52] cross-day sim indy_20170131_02: oracle=4.75, wiener_rc=0.83, kalman_rc=0.10, gru_fixed=0.00, gru_rc=0.65, sld_fixed=0.00, sld_rc=0.01, sld_aligned=0.78
+[15:38:52] stage sim finished in 979s
