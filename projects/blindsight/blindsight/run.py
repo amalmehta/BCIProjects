@@ -38,16 +38,33 @@ def run_dir(cfg: dict, dataset: str, variant: str, seed: int) -> Path:
     return Path(cfg["results_dir"]) / "runs" / f"{dataset}_{variant}_s{seed}"
 
 
-def training_jobs(cfg: dict) -> list[tuple[str, str, int]]:
-    """All (dataset, variant, seed) encoders the pipeline needs."""
-    jobs = [(d, "main", s) for s in cfg["seeds"] for d in cfg["datasets"]]
-    jobs += [(cfg["ablation_dataset"], v, s) for v in cfg["variants"] for s in cfg["ablation_seeds"]]
+def encoder_variants(cfg: dict) -> list[str]:
+    """Variants trained on every dataset and evaluated next to the main encoder (they carry _datasets)."""
+    return [v for v, spec in cfg["variants"].items() if "_datasets" in spec]
+
+
+def ablation_variants(cfg: dict) -> list[str]:
+    return [v for v in cfg["variants"] if v not in encoder_variants(cfg)]
+
+
+def training_jobs(cfg: dict, ablations: bool = True) -> list[tuple[str, str, int]]:
+    """All (dataset, variant, seed) encoders the pipeline needs, ordered seed-major so that a
+    first complete set (seed 0 of every encoder) finishes before the extra seeds."""
+    jobs = []
+    for s in sorted(set(cfg["seeds"])):
+        jobs += [(d, "main", s) for d in cfg["datasets"]]
+        for v in encoder_variants(cfg):
+            spec = cfg["variants"][v]
+            if s in spec["_seeds"]:
+                jobs += [(d, v, s) for d in spec["_datasets"] if d in cfg["datasets"]]
+    if ablations:
+        jobs += [(cfg["ablation_dataset"], v, s) for v in ablation_variants(cfg) for s in cfg["ablation_seeds"]]
     return jobs
 
 
-def stage_train(cfg: dict, shard: str, log) -> None:
+def stage_train(cfg: dict, shard: str, log, ablations: bool = True) -> None:
     i, n = (int(v) for v in shard.split("/"))
-    for k, (d, v, s) in enumerate(training_jobs(cfg)):
+    for k, (d, v, s) in enumerate(training_jobs(cfg, ablations)):
         out = run_dir(cfg, d, v, s)
         if k % n != i or (out / "encoder.pt").exists():
             continue
@@ -113,7 +130,7 @@ def stage_ablate(cfg: dict, log) -> None:
     cache_dir = Path(cfg["results_dir"]) / "eval" / "ablations"
     cache_dir.mkdir(parents=True, exist_ok=True)
     rows = []
-    for variant in ["main", *cfg["variants"]]:
+    for variant in ["main", *ablation_variants(cfg)]:
         cache = cache_dir / f"{variant}.json"
         runs = [run_dir(cfg, d, variant, s) for s in cfg["ablation_seeds"]]
         if not cache.exists() and all((r / "encoder.pt").exists() for r in runs):

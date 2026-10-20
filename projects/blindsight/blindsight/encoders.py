@@ -261,3 +261,158 @@ class PerceptClassifier(nn.Module):
 
     def forward(self, p: torch.Tensor) -> torch.Tensor:
         return self.net(p)
+
+
+# --- threshold-aware and temporal encoders ------------------------------------------------
+
+@dataclass
+class Condition:
+    """Per-electrode calibration given to a conditioned encoder (shapes (N,) or (B, N)).
+
+    ``threshold_ua`` is the calibrated detection-threshold current; ``alive`` marks
+    known-working electrodes. Temporal encoders also get the habituation trace (expressed
+    as the extra current it costs, uA) and the previous frame's amplitudes.
+    """
+
+    threshold_ua: torch.Tensor
+    alive: torch.Tensor
+    trace_ua: torch.Tensor | None = None
+    prev_amp_ua: torch.Tensor | None = None
+
+    def masked(self, keep: torch.Tensor) -> "Condition":
+        """Same calibration with additional known-dead electrodes (``keep`` = 0)."""
+        return Condition(self.threshold_ua, self.alive * keep, self.trace_ua, self.prev_amp_ua)
+
+
+def splat(values: torch.Tensor, idx: torch.Tensor, w: torch.Tensor, res: int) -> torch.Tensor:
+    """Transpose of :func:`sample_at`: spread per-electrode values (B, N) onto a (B, 1, res, res) map."""
+    b = values.shape[0]
+    vals = (values[:, :, None] * w[None]).reshape(b, -1)
+    out = torch.zeros(b, res * res, dtype=values.dtype, device=values.device)
+    out.scatter_add_(1, idx.reshape(1, -1).expand(b, -1), vals)
+    return out.view(b, 1, res, res)
+
+
+class ThresholdAwareEncoder(nn.Module):
+    """Encoder conditioned on the patient's calibration (and, optionally, the habituation state).
+
+    Same U-Net and retinotopic read-out as :class:`LearnedEncoder`, with three changes:
+
+    1. *Coverage input.* The fraction of nominally present electrodes that are usable
+       (alive and with threshold below the ceiling), splatted at their phosphene locations
+       and blurred, is a fifth input channel, so the network can route content around holes.
+    2. *Per-electrode conditioning at the read-out.* The map has ``map_channels`` channels;
+       at each electrode, its read-out is concatenated with [threshold / I_max, usable]
+       (temporal: + [trace / I_max, previous amplitude / I_max]) and passed through a small
+       MLP shared by all electrodes (no per-electrode parameters).
+    3. *Threshold-aware output.* The MLP gives a gate logit z0 and a level logit z1:
+           amp_n = 1[z0 > 0] * usable_n * (t_n + m + sigmoid(z1) (I_max - t_n - m)),
+       t_n = threshold (+ habituation shift), m = 1 uA margin. Every delivered current is at
+       least m above the calibrated threshold, so none is wasted below it. The hard gate has a
+       straight-through sigmoid gradient in training.
+    """
+
+    def __init__(self, ctx: EncoderContext, width: int = 32, map_channels: int = 4, hidden: int = 16,
+                 temporal: bool = False, margin_ua: float = 1.0, coverage_blur_px: float = 1.5):
+        super().__init__()
+        self.register_buffer("coords", coord_channels(ctx.res, ctx.fov_deg))
+        idx, w = bilinear_taps(ctx.x_deg, ctx.y_deg, ctx.fov_deg, ctx.res // 2)
+        self.register_buffer("idx", idx)
+        self.register_buffer("w", w)
+        idx_f, w_f = bilinear_taps(ctx.x_deg, ctx.y_deg, ctx.fov_deg, ctx.res)
+        self.register_buffer("idx_full", idx_f)
+        self.register_buffer("w_full", w_f)
+        self.res, self.blur = ctx.res, coverage_blur_px
+        dens = gaussian_blur(splat(torch.ones(1, len(ctx.x_deg)), idx_f, w_f, ctx.res), coverage_blur_px)
+        self.register_buffer("density", dens)
+        c, k = width, map_channels
+        self.down1 = nn.Sequential(nn.Conv2d(5, c // 2, 3, stride=2, padding=1), nn.ReLU(),
+                                   nn.Conv2d(c // 2, c, 3, padding=1), nn.ReLU())
+        self.down2 = nn.Sequential(nn.Conv2d(c, c, 3, stride=2, padding=1), nn.ReLU(),
+                                   nn.Conv2d(c, c, 3, padding=1), nn.ReLU(),
+                                   nn.Conv2d(c, c, 3, padding=1), nn.ReLU())
+        self.up1 = nn.Sequential(nn.Conv2d(2 * c + 5, c // 2, 3, padding=1), nn.ReLU(), nn.Conv2d(c // 2, k, 1))
+        self.temporal = temporal
+        n_feat = k + 2 + (2 if temporal else 0)
+        self.head = nn.Sequential(nn.Linear(n_feat, hidden), nn.ReLU(), nn.Linear(hidden, 2))
+        with torch.no_grad():
+            self.head[2].bias.copy_(torch.tensor([2.0, 0.0]))  # start with every usable electrode gated on
+        self.max_current_ua, self.margin = ctx.max_current_ua, margin_ua
+
+    def usable(self, cond: Condition) -> torch.Tensor:
+        thr = cond.threshold_ua + (0 if cond.trace_ua is None else cond.trace_ua)
+        return cond.alive * (thr + self.margin < self.max_current_ua).float()
+
+    def coverage(self, cond: Condition) -> torch.Tensor:
+        """(1 or B, 1, R, R) local fraction of usable electrodes (static calibration only)."""
+        thr_ok = (cond.threshold_ua + self.margin < self.max_current_ua).float()
+        u = (cond.alive * thr_ok).reshape(-1, self.idx_full.shape[0])
+        cov = gaussian_blur(splat(u, self.idx_full, self.w_full, self.res), self.blur)
+        return (cov / (self.density + 1e-6)).clamp(0.0, 1.0)
+
+    def forward(self, x: torch.Tensor, cond: Condition, coverage: torch.Tensor | None = None) -> torch.Tensor:
+        b = x.shape[0]
+        cov = self.coverage(cond) if coverage is None else coverage
+        h = torch.cat([x, self.coords.expand(b, -1, -1, -1), cov.expand(b, -1, -1, -1)], 1)
+        d1 = self.down1(h)
+        d2 = self.down2(d1)
+        m = self.up1(torch.cat([d1, F.interpolate(d2, scale_factor=2.0, mode="nearest"), F.avg_pool2d(h, 2)], 1))
+        flat = m.flatten(2)  # (B, K, H*W)
+        n = self.idx.shape[0]
+        u = (flat[:, :, self.idx.reshape(-1)].reshape(b, -1, n, 4) * self.w).sum(-1).transpose(1, 2)  # (B, N, K)
+        imax = self.max_current_ua
+        thr = cond.threshold_ua + (0 if cond.trace_ua is None else cond.trace_ua)
+        usable = self.usable(cond)
+        feats = [u, (thr / imax).expand(b, n).unsqueeze(-1), usable.expand(b, n).unsqueeze(-1)]
+        if self.temporal:
+            tr = torch.zeros(b, n, device=x.device) if cond.trace_ua is None else cond.trace_ua.expand(b, n)
+            pv = torch.zeros(b, n, device=x.device) if cond.prev_amp_ua is None else cond.prev_amp_ua.expand(b, n)
+            feats += [(tr / imax).unsqueeze(-1), (pv / imax).unsqueeze(-1)]
+        z = self.head(torch.cat(feats, -1))
+        gate_soft = torch.sigmoid(z[..., 0])
+        gate = (z[..., 0] > 0).float()
+        if self.training:
+            gate = gate + gate_soft - gate_soft.detach()
+        t = thr.clamp(max=imax).expand(b, n)
+        level = t + self.margin + torch.sigmoid(z[..., 1]) * (imax - t - self.margin).clamp(min=0.0)
+        return gate * usable * level
+
+
+class Conditioned(nn.Module):
+    """Bind a conditioned encoder to one patient's calibration: forward(x) -> amplitudes."""
+
+    def __init__(self, enc: ThresholdAwareEncoder, cond: Condition):
+        super().__init__()
+        self.enc, self.cond = enc, cond
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.enc(x, self.cond)
+
+
+class BakedThresholdAwareEncoder(nn.Module):
+    """ONNX export wrapper: the demo patient's thresholds, alive mask and coverage map are constants,
+    so the graph keeps the generic encoder's I/O (``image`` -> ``amplitude_ua``)."""
+
+    def __init__(self, enc: ThresholdAwareEncoder, cond: Condition):
+        super().__init__()
+        self.enc = enc
+        self.register_buffer("thr", cond.threshold_ua.detach().clone().reshape(1, -1))
+        self.register_buffer("alive", cond.alive.detach().clone().reshape(1, -1))
+        with torch.no_grad():
+            self.register_buffer("cov", enc.coverage(cond).detach().clone())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.enc(x, Condition(self.thr, self.alive), coverage=self.cov)
+
+
+class MaskedEncoder(nn.Module):
+    """Known-dead masking at inference: zero the given electrodes *before* the safety layer, so the
+    top-k budget goes to working electrodes."""
+
+    def __init__(self, enc: nn.Module, keep: torch.Tensor):
+        super().__init__()
+        self.enc = enc
+        self.register_buffer("keep", keep.clone())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.enc(x) * self.keep

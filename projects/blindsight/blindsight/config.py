@@ -43,7 +43,10 @@ def deep_update(base: dict, override: dict) -> dict:
 
 def variant_config(cfg: dict, variant: str) -> dict:
     """Config for a named training variant (``main`` or an ablation listed under ``variants``)."""
-    return cfg if variant == "main" else deep_update(cfg, cfg["variants"][variant])
+    if variant == "main":
+        return cfg
+    # Keys starting with "_" (e.g. _datasets, _seeds) say which runs to train, not how.
+    return deep_update(cfg, {k: v for k, v in cfg["variants"][variant].items() if not k.startswith("_")})
 
 
 @dataclass
@@ -84,11 +87,16 @@ class Setup:
                               self.params.max_current_ua)
 
 
+def sim_params(cfg: dict) -> SimParams:
+    """Simulator constants from the ``sim`` block (``threshold_model`` defaults to the original dynaphos fit)."""
+    s = cfg["sim"]
+    return SimParams(fov_deg=s["fov_deg"], resolution=s["resolution"], max_current_ua=s["max_current_ua"],
+                     sigma_floor_deg=s["sigma_floor_deg"], threshold_model=s.get("threshold_model", "dynaphos"))
+
+
 def build_setup(cfg: dict) -> Setup:
     """Instantiate simulator constants, electrode layout and safety layer from a config dict."""
-    s = cfg["sim"]
-    params = SimParams(fov_deg=s["fov_deg"], resolution=s["resolution"], max_current_ua=s["max_current_ua"],
-                       sigma_floor_deg=s["sigma_floor_deg"])
+    params = sim_params(cfg)
     lc = cfg["layout"]
     layout = make_layout(lc["name"], lc["ecc_min"], lc["ecc_max"], lc.get("seed", 0))
     frac = cfg["safety"]["max_active_frac"]

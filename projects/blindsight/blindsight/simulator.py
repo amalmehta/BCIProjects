@@ -11,8 +11,10 @@ doi:10.7554/eLife.85812), restricted to what we need and made fast on CPU:
    duration T applied from rest (the static mode used for training) the coupled system
    has a closed form, A = (I - I0) PW f g(T) (see ``SimParams.activation_gain``).
 4. Brightness (Eq. 10): b = sigmoid(lambda * (A - A50)), shown only if A > A_thr,n,
-   where per-electrode thresholds A_thr,n ~ N(theta50, sd^2) (fitted by the dynaphos
-   authors to Fernandez et al. 2021).
+   where per-electrode thresholds A_thr,n are drawn per patient. Two threshold models:
+   ``dynaphos`` (A_thr ~ N(theta50, sd^2), the dynaphos fit; thresholds 47 +/- 15 uA) and
+   ``fernandez2021`` (default since the recalibration: threshold *currents* follow a normal
+   truncated at the rheobase whose moments match Fernandez et al. 2021, 66.8 +/- 36.5 uA).
 5. Size (Tehovnik & Slocum 2007 current spread): activated radius r = sqrt(I / K) mm,
    phosphene diameter P = 2 r / M(ecc) degrees, Gaussian sigma = P / 2 (two standard
    deviations equal the phosphene size, as in the eLife text).
@@ -59,11 +61,17 @@ class SimParams:
     sigma_floor_deg: float = 0.15  # display blur added in quadrature
     max_current_ua: float = 100.0  # hard safety limit on amplitude
     soft_gate_width: float = 0.1  # width of the surrogate threshold gate, in units of a50
+    # Threshold model: "dynaphos" draws A_thr ~ N(threshold_mean, threshold_sd) (clipped at 0);
+    # "fernandez2021" draws threshold currents I_thr ~ N(mu, sd) truncated below at the rheobase,
+    # with (mu, sd) solved so the truncated mean/sd equal threshold_target_ua (see calibrate_thresholds).
+    threshold_model: str = "dynaphos"
+    threshold_target_ua: tuple = (66.8, 36.5)  # Fernandez et al. 2021 abstract: 66.8 +/- 36.5 uA
     model: WedgeDipole = field(default_factory=WedgeDipole)
 
     def to_dict(self) -> dict:
         d = asdict(self)
         d["model"] = asdict(self.model)
+        d["threshold_target_ua"] = list(self.threshold_target_ua)
         return d
 
     @property
@@ -79,10 +87,48 @@ class SimParams:
         inv_tau = 1.0 / self.tau_act_s
         return (math.exp(-kd * self.train_s) - math.exp(-self.train_s * inv_tau)) / (inv_tau - kd)
 
+    def __post_init__(self):
+        if self.threshold_model == "fernandez2021":
+            mu, sd = truncated_normal_params(*self.threshold_target_ua, self.rheobase_a * 1e6)
+            self.thr_current_mu_ua, self.thr_current_sd_ua = mu, sd
+            # Keep threshold_mean / threshold_sd as the moments of A_thr (used by the nominal
+            # patient and the fast renderer's lower size anchor): A_thr is linear in I_thr.
+            per_ua = 1e-6 * self.pulse_width_s * self.frequency_hz * self.activation_gain
+            self.threshold_mean = (self.threshold_target_ua[0] - self.rheobase_a * 1e6) * per_ua
+            self.threshold_sd = self.threshold_target_ua[1] * per_ua
+        elif self.threshold_model != "dynaphos":
+            raise ValueError(self.threshold_model)
+
+    def sample_thresholds(self, rng: np.random.Generator, n: int, sd_scale: float = 1.0) -> np.ndarray:
+        """Per-electrode activation thresholds A_thr for one patient (threshold model above)."""
+        if self.threshold_model == "dynaphos":
+            return np.clip(rng.normal(self.threshold_mean, self.threshold_sd * sd_scale, n), 0, None)
+        from scipy.special import ndtr, ndtri
+
+        lo = self.rheobase_a * 1e6
+        mu, sd = self.thr_current_mu_ua, self.thr_current_sd_ua * sd_scale
+        u = rng.random(n)
+        f0 = ndtr((lo - mu) / sd)
+        i_thr = mu + sd * ndtri(f0 + u * (1 - f0))  # inverse-CDF sampling of the truncated normal
+        per_ua = 1e-6 * self.pulse_width_s * self.frequency_hz * self.activation_gain
+        return np.maximum(i_thr - lo, 0.0) * per_ua
+
     def threshold_current_ua(self, a_thr: np.ndarray | float) -> np.ndarray | float:
         """Current (uA) at which a static train reaches activation ``a_thr``."""
         duty = self.pulse_width_s * self.frequency_hz
         return (self.rheobase_a + np.asarray(a_thr) / (duty * self.activation_gain)) * 1e6
+
+
+def truncated_normal_params(mean: float, sd: float, lo: float) -> tuple[float, float]:
+    """(mu, sigma) of a normal truncated below at ``lo`` whose mean and sd equal (mean, sd)."""
+    from scipy.optimize import least_squares
+    from scipy.stats import truncnorm
+
+    def resid(q):
+        d = truncnorm((lo - q[0]) / q[1], np.inf, loc=q[0], scale=q[1])
+        return [d.mean() - mean, d.std() - sd]
+    r = least_squares(resid, [mean, sd], bounds=([-10 * mean, 1e-3], [10 * mean, 20 * sd]), xtol=1e-12, ftol=1e-12)
+    return float(r.x[0]), float(r.x[1])
 
 
 @dataclass
@@ -129,7 +175,7 @@ def sample_patient(layout: Layout, params: SimParams, seed: int, dropout: float 
     dx = rng.normal(0, jitter_mm, layout.n)
     dy = rng.normal(0, jitter_mm, layout.n)
     x, y, ecc = _positions(layout, params, dx, dy)
-    thr = np.clip(rng.normal(params.threshold_mean, params.threshold_sd * threshold_sd_scale, layout.n), 0, None)
+    thr = params.sample_thresholds(rng, layout.n, threshold_sd_scale)
     alive = (rng.random(layout.n) >= dropout).astype(np.float32)
     f = lambda a: torch.as_tensor(np.asarray(a), dtype=torch.float32)
     return Patient(f(x), f(y), f(ecc), f(thr), f(alive), f"patient_{seed}")
@@ -206,7 +252,8 @@ class PhospheneSimulator(nn.Module):
             self._basis_cache, self._basis_key = torch.stack(maps), key
         return self._basis_cache[0], self._basis_cache[1]
 
-    def forward(self, amp_ua: torch.Tensor, patient: Patient, hard: bool = True, fast: bool = False) -> torch.Tensor:
+    def forward(self, amp_ua: torch.Tensor, patient: Patient, hard: bool = True, fast: bool = False,
+                activation: torch.Tensor | None = None) -> torch.Tensor:
         """Amplitudes (B, N) in uA -> percept (B, 1, H, W) in [0, 1].
 
         ``fast=True`` (training) replaces the exact amplitude-dependent Gaussian by a
@@ -216,7 +263,8 @@ class PhospheneSimulator(nn.Module):
         error is measured in the tests; evaluation always uses the exact renderer.
         """
         amp_ua = amp_ua * patient.alive
-        act = self.activation(amp_ua)
+        # ``activation`` (B, N) overrides the static closed form (used by sequence rendering).
+        act = self.activation(amp_ua) if activation is None else activation
         b = self.brightness(act, patient.threshold, hard=hard) * patient.alive
         if not fast:
             sig = self.sigma_deg(amp_ua, patient.ecc_deg)
@@ -227,6 +275,30 @@ class PhospheneSimulator(nn.Module):
         img = (b * (1 - t)) @ g_lo + (b * t) @ g_hi
         n = self.p.resolution
         return img.clamp(0.0, 1.0).view(-1, 1, n, n)
+
+
+def frame_update(params: SimParams, amp_ua: torch.Tensor, act0: torch.Tensor, trace0: torch.Tensor,
+                 duration_s: float | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+    """Closed-form state update over one frame: a constant-amplitude pulse train of ``duration_s``
+    (default ``train_s``) starting from activation ``act0`` and habituation trace ``trace0`` (amperes).
+
+    With e0 = max(0, I - I0 - B0) the coupled equations dB/dt = kappa I_eff, I_eff = (I - I0 - B) d,
+    dA/dt = -A / tau + I_eff give I_eff(t) = e0 d exp(-kd t), so
+        A(T) = A0 exp(-T / tau) + e0 d g(T),   B(T) = [B0 + e0 (1 - exp(-kd T))] * decay^T.
+    (The trace decay, tau_trace ~ 2000 s, is applied once per frame.) From rest (A0 = B0 = 0) this is
+    exactly the static mode, so the first frame of a sequence equals the single-image percept.
+    Differentiable in ``amp_ua``; shapes broadcast (B, N).
+    """
+    p = params
+    t = p.train_s if duration_s is None else duration_s
+    d = p.pulse_width_s * p.frequency_hz
+    kd = p.trace_increase_rate * d
+    inv_tau = 1.0 / p.tau_act_s
+    gain = (math.exp(-kd * t) - math.exp(-t * inv_tau)) / (inv_tau - kd)
+    e0 = torch.relu(amp_ua * 1e-6 - p.rheobase_a - trace0)
+    act = act0 * math.exp(-t * inv_tau) + e0 * d * gain
+    trace = (trace0 + e0 * (1.0 - math.exp(-kd * t))) * p.trace_decay_per_second ** t
+    return act, trace
 
 
 class TemporalSimulator:

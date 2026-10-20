@@ -9,6 +9,10 @@ sim:
   resolution: 64         # pixels per side for training and evaluation
   max_current_ua: 100.0  # hard amplitude ceiling (17 nC/phase at 170 us)
   sigma_floor_deg: 0.15  # display blur added in quadrature to every phosphene
+  # Threshold model. fernandez2021: threshold currents ~ normal truncated at the rheobase, moments
+  # matched to Fernandez et al. 2021 (66.8 +/- 36.5 uA). dynaphos: the original fit (47 +/- 15 uA),
+  # used for the v1 results archived in results/v1_dynaphos_thresholds/.
+  threshold_model: fernandez2021
 layout:
   name: threads_1024     # main implant: 1024 thread sites over both hemispheres
   ecc_min: 0.2
@@ -34,12 +38,17 @@ train:
   w_ssim: 0.5
   w_charge: 0.05
   log_every: 100
+  encoder: generic        # generic | threshold_aware (see variants)
+  dropout_aug: 0.0        # max fraction of extra failed electrodes per training image (0 = off)
+  dropout_aug_prob: 0.8   # share of training images that get failures
+  dropout_announced: true # conditioned encoders are told which electrodes failed
 eval:
   n_test: 2000
   n_clf_train: 6000
   clf_epochs: 4
   clf_batch: 128
-  dropout_levels: [0.1, 0.25, 0.5]   # 0 % is the main result
+  dropout_levels: [0.1, 0.25, 0.5]
+  threshold_noise_cv: 0.2  # calibration-error check: thresholds seen by encoders x lognormal(0, cv)   # 0 % is the main result
   oracle_images: 128
   oracle_steps: 100
 adapt:
@@ -49,10 +58,15 @@ adapt:
   steps: 150
   batch: 32
   lr: 0.005
-# Training variants (ablations), trained on ablation_dataset with ablation_seeds.
+# Training variants. Entries with _datasets/_seeds are encoder variants trained on those datasets and
+# evaluated next to the main encoder; the others are ablations trained on ablation_dataset/ablation_seeds.
 ablation_dataset: mnist
 ablation_seeds: [0]
 variants:
+  threshold_aware: {_datasets: [mnist, letters, cifar], _seeds: [0, 1, 2],
+                    train: {encoder: threshold_aware, dropout_aug: 0.5, dropout_announced: true}}
+  threshold_aware_noaug: {_datasets: [mnist, letters, cifar], _seeds: [0], train: {encoder: threshold_aware}}
+  dropout_aug: {_datasets: [mnist, letters, cifar], _seeds: [0], train: {dropout_aug: 0.5}}
   no_percept_loss: {train: {w_percept: 0.0}}
   no_recon_loss: {train: {w_recon: 0.0}}
   no_charge_cost: {train: {w_charge: 0.0}}
@@ -61,3 +75,16 @@ variants:
   threads_256: {layout: {name: threads_256}}
   utah_96: {layout: {name: utah_96}}
   utah_1024: {layout: {name: utah_1024}}
+# Temporal encoder (habituation): fine-tuned from a threshold_aware run on short sequences.
+temporal:
+  datasets: [mnist, letters]
+  init_variant: threshold_aware
+  seed: 0
+  frames_train: 8
+  steps: 300
+  batch: 16
+  lr: 0.0003
+  w_charge: 0.05
+  frames_eval: 16          # 16 frames x 166 ms = 2.7 s
+  n_eval_per_patient: 100
+  speed_px: 1.0            # moving sequences: 1 px (0.19 deg) per frame
