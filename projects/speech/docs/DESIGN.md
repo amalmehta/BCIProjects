@@ -35,14 +35,16 @@ flowchart LR
 | `speech/download.py` | CLI: sessions + block metadata CSV + GPT-2 weights |
 | `speech/augment.py` | Batch augmentations and Gaussian smoothing |
 | `speech/models.py` | `GRUDecoder` (published baseline), `ConformerDecoder` (causal or bidirectional, intermediate/self-conditioned CTC), `DayInputLayers` |
-| `speech/train.py` | Data splits, length-bucketed batching, CTC training with best-dev checkpointing; dumps posteriors |
+| `speech/train.py` | Data splits, input re-standardisation, length-bucketed batching, short-utterance curriculum, CTC training with warm-up + cosine LR, gradient clipping and best-dev checkpointing; per-step trace (loss, pre-clip gradient norm, blank fraction); dumps posteriors |
+| `speech/stability.py` | Summarises each run's trace: blank-plateau length, escape step, gradient-norm statistics |
 | `speech/run_queue.py` | Resumable process pool over the config's `schedule` |
 | `speech/lm.py` | CMUdict lexicon, phoneme trie, pure-NumPy interpolated Kneser–Ney trigram |
 | `speech/build_lm.py` | Builds the LM corpus with evaluation sentences filtered out |
 | `speech/beam.py` | Lexicon-constrained CTC prefix beam search with word LM, n-best output |
 | `speech/rescore.py` | GPT-2 sentence log-likelihoods for n-best rescoring |
-| `speech/evaluate.py` | Tunes LM weights on dev, decodes test for each system and ensemble, PER/WER with bootstrap CIs |
-| `speech/calibrate.py` | New-day calibration curve (reuse / day layer only / full fine-tune) |
+| `speech/evaluate.py` | Tunes every decoder setting on dev (lexicon-only bonus, α, β, beam, GPT-2 γ and bonus) with grids that extend past an edge optimum, then decodes test once for each system and ensemble; PER/WER with sentence-level bootstrap CIs; paired bootstrap tests between systems |
+| `speech/calibrate.py` | New-day study: reuse, unsupervised adaptation, supervised day-layer calibration |
+| `speech/adapt.py` | Unsupervised test-time adaptation of the new day's input layer: moment / CORAL statistics matching folded into the layer, and confidence-filtered pseudo-label self-training |
 | `speech/robustness.py` | PER vs. fraction of electrodes silenced at test time; PER when decoding through the wrong day's input layer |
 | `speech/latency.py` | Per-frame streaming cost and lookahead; LM-stage timings |
 | `speech/report.py`, `speech/figures.py` | `metrics.json`, PNG figures, website export |
