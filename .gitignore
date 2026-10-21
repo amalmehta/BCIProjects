@@ -9,3 +9,7 @@ projects/speech/results/runs/
 .venv-gpu/
 projects/speech/results/diag/**/*.pt
 projects/speech/results/diag/**/*.npz
+
+# Private: the original brief and its inputs
+neuralink_product_dev.md
+inputs/
