@@ -3,7 +3,6 @@
 ```
 neuralink_product_dev/
 ├── README.md                      what it is, screenshots, links
-├── neuralink_product_dev.md       the project brief (spec, decisions, changelog)
 ├── papers/                        the four papers people open
 │   ├── Telepathy.pdf
 │   ├── Speech.pdf
